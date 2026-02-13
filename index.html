@@ -938,50 +938,1404 @@ function animateSlideToKept(diceToSlide, callback) {
 
 // ===================== ROLL ANIMATION =====================
 function getRandomPositions(count) {
+  const dpr = window.devicePixelRatio || 1;
+  const tableW = canvas.width / dpr;
+  const tableH = canvas.height / dpr;
+
+  // Safe play area — generous margins to avoid all UI panels
+  const pad = DIE_SIZE * 0.7;
+  const areaLeft = Math.max(tableW * 0.23, 170) + pad;
+  const areaRight = tableW - Math.max(tableW * 0.15, 130) - pad;
+  const areaTop = 55 + pad;
+  const areaBottom = tableH - 100 - pad;
+  const areaW = Math.max(areaRight - areaLeft, DIE_SIZE * 3);
+  const areaH = Math.max(areaBottom - areaTop, DIE_SIZE * 2);
+
+  // Predefined layout templates that always work for 1–6 dice
+  // Each position is a fraction [0–1, 0–1] within the safe area
+  const layouts = {
+    1: [[0.5, 0.5]],
+    2: [[0.3, 0.5], [0.7, 0.5]],
+    3: [[0.2, 0.4], [0.5, 0.6], [0.8, 0.4]],
+    4: [[0.2, 0.3], [0.8, 0.3], [0.2, 0.7], [0.8, 0.7]],
+    5: [[0.15, 0.3], [0.5, 0.25], [0.85, 0.3], [0.3, 0.75], [0.7, 0.75]],
+    6: [[0.15, 0.28], [0.5, 0.22], [0.85, 0.28], [0.15, 0.72], [0.5, 0.78], [0.85, 0.72]],
+  };
+
+  const template = layouts[Math.min(count, 6)] || layouts[6];
+  const positions = [];
+
+  // Max jitter: ensure dice can never touch (limited to fraction of min distance between template points)
+  const maxJitter = Math.min(areaW, areaH) * 0.06;
+
+  for (let i = 0; i < count; i++) {
+    const pt = template[i % template.length];
+    positions.push({
+      x: areaLeft + pt[0] * areaW + (Math.random() - 0.5) * maxJitter * 2,
+      y: areaTop + pt[1] * areaH + (Math.random() - 0.5) * maxJitter * 2,
+    });
+  }
+
+  return positions;
+}
+
+function animateRoll(callback) {
+  state.rolling = true;
+  const duration = 700;
+  const start = performance.now();
+  const rollingDice = state.dice.filter(d => !d.kept);
+  const targets = getRandomPositions(rollingDice.length);
   const tableW = canvas.width / (window.devicePixelRatio || 1);
   const tableH = canvas.height / (window.devicePixelRatio || 1);
 
-  // Define the usable play area (avoid UI overlays)
-  // Score panel is ~180px wide on left, turn score ~150px on right
-  const areaLeft = Math.max(DIE_SIZE + 30, tableW * 0.22);
-  const areaRight = tableW - Math.max(DIE_SIZE + 30, tableW * 0.14);
-  const areaTop = DIE_SIZE + 50;
-  const areaBottom = tableH - DIE_SIZE - 90;
-  const areaW = areaRight - areaLeft;
-  const areaH = areaBottom - areaTop;
+  rollingDice.forEach((die, i) => {
+    die.startX = tableW / 2 + (Math.random() - 0.5) * 200;
+    die.startY = tableH / 2 + (Math.random() - 0.5) * 100;
+    die.targetX = targets[i].x;
+    die.targetY = targets[i].y;
+    die.targetAngle = (Math.random() - 0.5) * 0.45;
+    die.spinSpeed = (Math.random() - 0.5) * 14;
+  });
 
-  // Cell size ensures no overlap: die diagonal + generous padding
-  const cellSize = DIE_SIZE * 1.7;
+  function frame(now) {
+    let t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
 
-  // Calculate grid dimensions
-  const cols = Math.max(1, Math.floor(areaW / cellSize));
-  const rows = Math.max(1, Math.floor(areaH / cellSize));
+    rollingDice.forEach(die => {
+      die.x = die.startX + (die.targetX - die.startX) * ease;
+      die.y = die.startY + (die.targetY - die.startY) * ease;
+      die.angle = die.spinSpeed * (1 - ease) + die.targetAngle * ease;
 
-  // Generate all possible grid cells
-  const cells = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      cells.push({ col: c, row: r });
+      if (t < 0.65) die.value = Math.floor(Math.random() * 6) + 1;
+      else if (t < 0.82) { if (Math.random() < 0.3) die.value = die.finalValue; }
+      else die.value = die.finalValue;
+    });
+    drawAllDice();
+
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      state.rolling = false;
+      rollingDice.forEach(d => { d.value = d.finalValue; d.angle = d.targetAngle; });
+      drawAllDice();
+      callback();
     }
   }
+  requestAnimationFrame(frame);
+}
 
-  // Shuffle cells
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [cells[i], cells[j]] = [cells[j], cells[i]];
+// ===================== SCORING LOGIC =====================
+function calculateScore(values) {
+  if (values.length === 0) return 0;
+  const counts = [0,0,0,0,0,0,0];
+  values.forEach(v => counts[v]++);
+  if (values.length === 6 && counts.slice(1).every(c => c === 1)) return 1000;
+  let score = 0;
+  for (let v = 1; v <= 6; v++) {
+    if (counts[v] >= 3) { score += v === 1 ? 1000 : v * 100; counts[v] -= 3; }
+  }
+  score += counts[1] * 100;
+  score += counts[5] * 50;
+  return score;
+}
+
+function canScoreAny(values) {
+  if (values.length === 0) return false;
+  const counts = [0,0,0,0,0,0,0];
+  values.forEach(v => counts[v]++);
+  if (counts[1] > 0 || counts[5] > 0) return true;
+  for (let v = 1; v <= 6; v++) if (counts[v] >= 3) return true;
+  if (values.length === 6 && counts.slice(1).every(c => c === 1)) return true;
+  return false;
+}
+
+function isValidSelection(sel) {
+  if (sel.length === 0) return false;
+  return calculateScore(sel.map(d => d.value)) > 0;
+}
+
+// ===================== GAME LOGIC =====================
+function doRoll() {
+  if (state.rolling || state.animating) return;
+  const btnRoll = document.getElementById('btn-roll');
+  const btnBank = document.getElementById('btn-bank');
+  btnRoll.disabled = true;
+  btnBank.disabled = true;
+
+  const tableW = canvas.width / (window.devicePixelRatio || 1);
+  const tableH = canvas.height / (window.devicePixelRatio || 1);
+
+  if (state.dice.length === 0 || state.dice.every(d => d.kept)) {
+    state.dice = [];
+    state.keptCount = 0;
+    for (let i = 0; i < 6; i++) {
+      state.dice.push({
+        value: 1, finalValue: Math.floor(Math.random() * 6) + 1,
+        x: tableW / 2, y: tableH / 2,
+        angle: 0, selected: false, kept: false, hidden: false,
+      });
+    }
+  } else {
+    state.dice.forEach(d => {
+      if (!d.kept) { d.finalValue = Math.floor(Math.random() * 6) + 1; d.selected = false; }
+    });
   }
 
-  // Pick cells and add jitter within each cell
-  const positions = [];
-  const jitter = cellSize * 0.2;
+  state.phase = 'rolling';
+  document.getElementById('instruction').textContent = '';
 
-  for (let i = 0; i < count && i < cells.length; i++) {
-    const cell = cells[i];
-    const baseX = areaLeft + (cell.col + 0.5) * (areaW / cols);
-    const baseY = areaTop + (cell.row + 0.5) * (areaH / rows);
+  if (state.soundOn) {
+    for (let i = 0; i < 5; i++) setTimeout(playDiceSound, i * 100 + Math.random() * 50);
+  }
+
+  animateRoll(() => {
+    const freeDice = state.dice.filter(d => !d.kept);
+    const freeValues = freeDice.map(d => d.value);
+    if (!canScoreAny(freeValues)) {
+      showMessage('FARKLE!', true);
+      state.turnScore = 0;
+      state.selectedScore = 0;
+      updateTurnDisplay();
+      setTimeout(() => { hideMessage(); nextPlayer(); }, 1800);
+      return;
+    }
+    state.phase = 'select';
+    document.getElementById('instruction').textContent = 'Tik op scorende dobbelstenen om ze te bewaren';
+    drawAllDice();
+  });
+}
+
+function rollDice() {
+  if (state.rolling || state.animating) return;
+  if (state.phase === 'select') {
+    const sel = state.dice.filter(d => d.selected && !d.kept);
+    if (sel.length > 0 && isValidSelection(sel)) {
+      state.turnScore += state.selectedScore;
+      state.selectedScore = 0;
+      updateTurnDisplay();
+      updateSelectedDisplay();
+      document.getElementById('btn-roll').disabled = true;
+      document.getElementById('btn-bank').disabled = true;
+      animateSlideToKept(sel, () => {
+        if (state.dice.every(d => d.kept)) {
+          showMessage('HOT DICE!', false);
+          setTimeout(() => { hideMessage(); state.dice = []; state.keptCount = 0; doRoll(); }, 1100);
+          return;
+        }
+        setTimeout(() => doRoll(), 150);
+      });
+      return;
+    }
+  }
+  doRoll();
+}
+
+function selectDie(index) {
+  if (state.phase !== 'select' || state.rolling || state.animating) return;
+  const die = state.dice[index];
+  if (die.kept) return;
+
+  die.selected = !die.selected;
+  if (state.soundOn) playClickSound();
+
+  const sel = state.dice.filter(d => d.selected && !d.kept);
+  const score = calculateScore(sel.map(d => d.value));
+  const valid = isValidSelection(sel);
+  state.selectedScore = score;
+  updateSelectedDisplay();
+
+  const btnRoll = document.getElementById('btn-roll');
+  const btnBank = document.getElementById('btn-bank');
+
+  if (valid) {
+    const pot = state.turnScore + score;
+    btnRoll.disabled = false;
+    btnBank.disabled = pot < MIN_TURN;
+    document.getElementById('instruction').textContent =
+      pot < MIN_TURN ? `Nog ${MIN_TURN - pot} punten nodig` : 'GOOIEN of PAKKEN';
+  } else {
+    btnRoll.disabled = true;
+    btnBank.disabled = true;
+    document.getElementById('instruction').textContent =
+      sel.length > 0 ? 'Ongeldige selectie' : 'Tik op scorende dobbelstenen';
+  }
+  drawAllDice();
+}
+
+function bankScore() {
+  if (state.rolling || state.animating) return;
+  const sel = state.dice.filter(d => d.selected && !d.kept);
+  if (sel.length > 0 && isValidSelection(sel)) {
+    state.turnScore += state.selectedScore;
+    state.selectedScore = 0;
+    document.getElementById('btn-roll').disabled = true;
+    document.getElementById('btn-bank').disabled = true;
+    animateSlideToKept(sel, () => finishBank());
+    return;
+  }
+  finishBank();
+}
+
+function finishBank() {
+  if (state.turnScore < MIN_TURN) {
+    showMessage(`MIN. ${MIN_TURN} NODIG!`, true);
+    setTimeout(() => { hideMessage(); state.turnScore = 0; updateTurnDisplay(); nextPlayer(); }, 1500);
+    return;
+  }
+  state.scores[state.currentPlayer] += state.turnScore;
+  updateScoreboard();
+  if (state.scores[state.currentPlayer] >= GOAL) {
+    showMessage(`SPELER ${state.currentPlayer + 1} WINT!`, false);
+    document.getElementById('btn-roll').disabled = true;
+    document.getElementById('btn-bank').disabled = true;
+    document.getElementById('instruction').textContent = 'Spel afgelopen! Ververs om opnieuw te spelen.';
+    return;
+  }
+  state.turnScore = 0;
+  state.selectedScore = 0;
+  updateTurnDisplay();
+  nextPlayer();
+}
+
+function nextPlayer() {
+  state.currentPlayer = (state.currentPlayer + 1) % state.numPlayers;
+  state.turnScore = 0;
+  state.selectedScore = 0;
+  state.dice = [];
+  state.keptCount = 0;
+  state.phase = 'roll';
+  updateTurnDisplay();
+  updateSelectedDisplay();
+  updatePlayerIndicator();
+  drawAllDice();
+  document.getElementById('btn-roll').disabled = false;
+  document.getElementById('btn-bank').disabled = true;
+  document.getElementById('instruction').textContent = 'Tik op GOOIEN om te beginnen';
+}
+
+// ===================== UI UPDATES =====================
+function updateScoreboard() {
+  for (let i = 0; i < state.numPlayers; i++) {
+    const el = document.getElementById(`score-p${i}`);
+    if (el) el.textContent = state.scores[i].toLocaleString('nl-NL');
+  }
+}
+
+function updateTurnDisplay() {
+  const el = document.getElementById('turn-score-value');
+  el.textContent = state.turnScore.toLocaleString('nl-NL');
+  const w = document.getElementById('min-warning');
+  if (state.turnScore > 0 && state.turnScore < MIN_TURN) {
+    el.classList.add('below-min'); w.classList.add('show');
+  } else {
+    el.classList.remove('below-min'); w.classList.remove('show');
+  }
+}
+
+function updateSelectedDisplay() {
+  const el = document.getElementById('selected-score');
+  if (state.selectedScore > 0) {
+    el.textContent = `+${state.selectedScore}`;
+    el.style.color = 'rgba(212,168,67,0.8)';
+  } else {
+    el.textContent = 'Selecteer';
+    el.style.color = 'rgba(245,240,232,0.4)';
+  }
+}
+
+function updatePlayerIndicator() {
+  document.getElementById('player-indicator').textContent = `SPELER ${state.currentPlayer + 1}`;
+  for (let i = 0; i < state.numPlayers; i++) {
+    const row = document.getElementById(`row-p${i}`);
+    if (row) row.classList.toggle('active', i === state.currentPlayer);
+  }
+}
+
+function showMessage(text, isFarkle) {
+  const el = document.getElementById('message');
+  el.textContent = text;
+  el.className = isFarkle ? 'show farkle' : 'show';
+}
+
+function hideMessage() { document.getElementById('message').className = ''; }
+function toggleRules() { document.getElementById('rules-overlay').classList.toggle('show'); }
+
+// ===================== SOUND TOGGLE =====================
+function toggleSound() {
+  state.soundOn = !state.soundOn;
+  const btn = document.getElementById('sound-btn');
+  btn.textContent = state.soundOn ? '🔊' : '🔇';
+  btn.classList.toggle('muted', !state.soundOn);
+}
+
+// ===================== TOUCH / CLICK HANDLING =====================
+canvas.style.pointerEvents = 'auto';
+
+// Use both touch and click for maximum compatibility
+function handleInteraction(clientX, clientY) {
+  if (state.phase !== 'select' || state.animating) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const mx = (clientX - rect.left) * (canvas.width / rect.width) / dpr;
+  const my = (clientY - rect.top) * (canvas.height / rect.height) / dpr;
+
+  // Larger hit area for touch (1.0x die size radius)
+  const hitRadius = DIE_SIZE * 0.8;
+
+  for (let i = state.dice.length - 1; i >= 0; i--) {
+    const die = state.dice[i];
+    if (die.kept || die.hidden) continue;
+    if (Math.hypot(mx - die.x, my - die.y) < hitRadius) {
+      selectDie(i);
+      return;
+    }
+  }
+}
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  handleInteraction(touch.clientX, touch.clientY);
+}, { passive: false });
+
+canvas.addEventListener('click', (e) => {
+  handleInteraction(e.clientX, e.clientY);
+});
+
+// Prevent zoom on double-tap
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - (document._lastTouch || 0) < 300) e.preventDefault();
+  document._lastTouch = now;
+}, { passive: false });
+
+// ===================== AUDIO =====================
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playDiceSound() {
+  if (!state.soundOn) return;
+  try {
+    const c = getAudioCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.frequency.value = 180 + Math.random() * 350;
+    osc.type = 'triangle';
+    gain.gain.setValueAtTime(0.06, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.08);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + 0.08);
+  } catch(e) {}
+}
+
+function playClickSound() {
+  if (!state.soundOn) return;
+  try {
+    const c = getAudioCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain);
+    gain.connect(c.destination);
+    osc.frequency.value = 800;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.03, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.04);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + 0.04);
+  } catch(e) {}
+}
+
+// Resume audio on first touch (iOS requirement)
+document.addEventListener('touchstart', function initAudio() {
+  getAudioCtx();
+  document.removeEventListener('touchstart', initAudio);
+}, { once: true });
+
+// ===================== INIT =====================
+drawAllDice();
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="screen-orientation" content="landscape">
+<title>Duizenden</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Crimson+Pro:wght@300;400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --felt: #1a5c2a;
+    --felt-dark: #0f3d1a;
+    --felt-light: #2a7a3a;
+    --wood: #5c3a1e;
+    --wood-light: #8b5e3c;
+    --wood-dark: #3d2512;
+    --gold: #d4a843;
+    --gold-light: #f0d078;
+    --cream: #f5f0e8;
+    --red-accent: #c0392b;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+
+  html, body {
+    background: #0e0e0e;
+    font-family: 'Crimson Pro', Georgia, serif;
+    color: var(--cream);
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+    inset: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ========== ROTATE PROMPT (portrait only) ========== */
+  #rotate-prompt {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #0e0e0e;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    color: var(--gold);
+    font-family: 'Playfair Display', serif;
+  }
+
+  #rotate-prompt .rotate-icon {
+    font-size: 60px;
+    animation: rotatePhone 2s ease-in-out infinite;
+  }
+
+  #rotate-prompt p {
+    font-size: 18px;
+    text-align: center;
+    padding: 0 40px;
+    color: var(--cream);
+    opacity: 0.7;
+  }
+
+  @keyframes rotatePhone {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(90deg); }
+    50% { transform: rotate(90deg); }
+    75% { transform: rotate(0deg); }
+  }
+
+  @media (orientation: portrait) and (max-width: 900px) {
+    #rotate-prompt { display: flex !important; }
+    #game-container { display: none !important; }
+  }
+
+  /* ========== GAME CONTAINER ========== */
+  #game-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  }
+
+  /* ========== SETUP SCREEN ========== */
+  #setup-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0e0e0e;
+  }
+
+  #setup-screen.hidden { display: none; }
+
+  #setup-box {
+    text-align: center;
+    padding: 30px 50px;
+    background: radial-gradient(ellipse at 50% 40%, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 100%);
+    border-radius: 20px;
+    box-shadow: 0 0 0 8px var(--wood-dark), 0 0 0 11px var(--wood), 0 0 0 14px var(--wood-light), 0 0 0 17px var(--wood-dark), 0 0 40px rgba(0,0,0,0.8);
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+  }
+
+  #setup-box::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+    opacity: 0.5;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+  }
+
+  #setup-box h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 6vw, 48px);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+    margin-bottom: 4px;
+    position: relative;
+  }
+
+  #setup-box .subtitle {
+    font-size: clamp(12px, 2.5vw, 16px);
+    color: rgba(245,240,232,0.5);
+    margin-bottom: 24px;
+    font-style: italic;
+    position: relative;
+  }
+
+  #setup-box label {
+    display: block;
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(14px, 3vw, 18px);
+    color: var(--cream);
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+    position: relative;
+  }
+
+  .player-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .player-btn {
+    width: clamp(44px, 10vw, 60px);
+    height: clamp(44px, 10vw, 60px);
+    border-radius: 12px;
+    border: 2px solid rgba(212,168,67,0.3);
+    background: rgba(0,0,0,0.3);
+    color: var(--gold-light);
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(18px, 4vw, 24px);
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .player-btn.selected {
+    border-color: var(--gold);
+    background: rgba(212,168,67,0.25);
+    box-shadow: 0 0 20px rgba(212,168,67,0.3);
+  }
+
+  #start-btn {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: clamp(16px, 3.5vw, 20px);
+    letter-spacing: 2px;
+    padding: 12px 50px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--red-accent), #a02020);
+    color: white;
+    box-shadow: 0 4px 20px rgba(192,57,43,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+    transition: all 0.2s;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ========== TABLE ========== */
+  #table {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    overflow: hidden;
+    background: var(--felt-dark);
+  }
+
+  #felt {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 100%);
+  }
+
+  #felt::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+    opacity: 0.5;
+    mix-blend-mode: multiply;
+  }
+
+  #felt::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 50% 35%, rgba(255,255,200,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Wood border effect via box-shadow on an inner element */
+  #table-border {
+    position: absolute;
+    inset: 4px;
+    border-radius: 16px;
+    box-shadow:
+      0 0 0 4px var(--wood-dark),
+      0 0 0 7px var(--wood),
+      0 0 0 10px var(--wood-light),
+      0 0 0 13px var(--wood-dark);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  #dice-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* ========== SCORE PANEL — left side ========== */
+  #score-panel {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: linear-gradient(135deg, rgba(0,0,0,0.75), rgba(0,0,0,0.55));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(212,168,67,0.25);
+    border-radius: 12px;
+    padding: 10px 16px;
+    z-index: 20;
+    min-width: 150px;
+  }
+
+  #score-panel h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(212,168,67,0.2);
+    padding-bottom: 4px;
+  }
+
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    gap: 12px;
+  }
+
+  .score-row .label { color: rgba(245,240,232,0.6); font-weight: 300; font-size: 14px; }
+  .score-row .value { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: var(--gold-light); }
+  .score-row.active .label { color: var(--gold-light); font-weight: 600; }
+  .score-row.active .value { color: var(--gold); text-shadow: 0 0 8px rgba(212,168,67,0.4); }
+
+  /* ========== TURN SCORE — right side ========== */
+  #turn-score-display {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: linear-gradient(135deg, rgba(0,0,0,0.75), rgba(0,0,0,0.55));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(212,168,67,0.25);
+    border-radius: 12px;
+    padding: 10px 16px;
+    z-index: 20;
+    text-align: right;
+    min-width: 130px;
+  }
+
+  #turn-score-display h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+
+  #turn-score-value {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(28px, 6vw, 40px);
+    color: var(--gold-light);
+    text-shadow: 0 2px 8px rgba(212,168,67,0.3);
+    transition: color 0.3s;
+    line-height: 1.1;
+  }
+
+  #turn-score-value.below-min { color: #e07040; }
+  #min-warning { font-size: 10px; color: #e07040; margin-top: 1px; opacity: 0; transition: opacity 0.3s; }
+  #min-warning.show { opacity: 1; }
+  #selected-score { font-size: 12px; color: rgba(245,240,232,0.5); margin-top: 2px; }
+
+  /* ========== PLAYER INDICATOR — top center ========== */
+  #player-indicator {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Playfair Display', serif;
+    font-size: 13px;
+    color: var(--gold);
+    z-index: 20;
+    background: rgba(0,0,0,0.5);
+    padding: 5px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(212,168,67,0.25);
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+
+  /* ========== CONTROLS — bottom ========== */
+  #controls {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 20;
+  }
+
+  .btn {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    padding: 12px 28px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-height: 44px;
+  }
+
+  .btn-roll {
+    background: linear-gradient(135deg, var(--red-accent), #a02020);
+    color: white;
+    box-shadow: 0 3px 15px rgba(192,57,43,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+
+  .btn-roll:active:not(:disabled) { transform: scale(0.95); }
+
+  .btn-bank {
+    background: linear-gradient(135deg, var(--gold), var(--wood-light));
+    color: var(--wood-dark);
+    box-shadow: 0 3px 15px rgba(212,168,67,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+
+  .btn-bank:active:not(:disabled) { transform: scale(0.95); }
+  .btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ========== TOOLBAR — bottom right ========== */
+  #toolbar {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 20;
+  }
+
+  .tool-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(212,168,67,0.25);
+    background: rgba(0,0,0,0.5);
+    color: var(--gold);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: all 0.15s;
+  }
+
+  .tool-btn:active { transform: scale(0.9); }
+  .tool-btn.muted { color: rgba(212,168,67,0.35); }
+
+  /* ========== MESSAGE ========== */
+  #message {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(24px, 5vw, 36px);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 2px 20px rgba(0,0,0,0.8), 0 0 30px rgba(212,168,67,0.3);
+    z-index: 30;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #message.show { opacity: 1; }
+
+  @keyframes farkleShake {
+    0%, 100% { transform: translate(-50%, -50%) rotate(0); }
+    10% { transform: translate(-50%, -50%) rotate(-3deg) scale(1.1); }
+    30% { transform: translate(-50%, -50%) rotate(3deg) scale(1.15); }
+    50% { transform: translate(-50%, -50%) rotate(-2deg) scale(1.1); }
+    70% { transform: translate(-50%, -50%) rotate(2deg) scale(1.05); }
+  }
+  #message.farkle { animation: farkleShake 0.8s ease; color: var(--red-accent); }
+
+  /* ========== INSTRUCTION ========== */
+  #instruction {
+    position: absolute;
+    bottom: 58px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: rgba(245,240,232,0.45);
+    z-index: 20;
+    text-align: center;
+    pointer-events: none;
+    font-style: italic;
+    white-space: nowrap;
+  }
+
+  /* ========== RULES OVERLAY ========== */
+  #rules-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #rules-overlay.show { display: flex; }
+
+  #rules-content {
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: linear-gradient(135deg, rgba(26,92,42,0.95), rgba(15,61,26,0.95));
+    border: 2px solid rgba(212,168,67,0.4);
+    border-radius: 16px;
+    padding: 24px;
+    color: var(--cream);
+  }
+  #rules-content h3 { font-family: 'Playfair Display', serif; color: var(--gold); font-size: 20px; margin-bottom: 12px; }
+  #rules-content p, #rules-content li { font-size: 13px; line-height: 1.5; margin-bottom: 6px; color: rgba(245,240,232,0.85); }
+  #rules-content ul { list-style: none; padding-left: 0; }
+  #rules-content li::before { content: '• '; color: var(--gold); }
+  #close-rules { margin-top: 14px; background: var(--gold); color: var(--wood-dark); border: none; padding: 10px 28px; border-radius: 8px; font-family: 'Playfair Display', serif; font-weight: 700; cursor: pointer; font-size: 14px; min-height: 44px; -webkit-tap-highlight-color: transparent; }
+
+  /* ========== DESKTOP ENHANCEMENTS ========== */
+  @media (min-width: 901px) {
+    #table {
+      width: min(95vw, 1200px);
+      height: min(88vh, 750px);
+      border-radius: 24px;
+      box-shadow: 0 0 80px rgba(0,0,0,0.6);
+    }
+
+    #table-border {
+      inset: 0;
+      border-radius: 24px;
+      box-shadow:
+        0 0 0 8px var(--wood-dark),
+        0 0 0 12px var(--wood),
+        0 0 0 16px var(--wood-light),
+        0 0 0 20px var(--wood-dark),
+        0 0 50px rgba(0,0,0,0.7);
+    }
+
+    #score-panel { top: 16px; left: 16px; padding: 14px 20px; min-width: 180px; }
+    #score-panel h2 { font-size: 11px; }
+    .score-row .label { font-size: 13px; }
+    .score-row .value { font-size: 17px; }
+
+    #turn-score-display { top: 16px; right: 16px; padding: 14px 22px; }
+    #turn-score-display h2 { font-size: 12px; }
+
+    #player-indicator { font-size: 16px; padding: 6px 22px; top: 16px; }
+
+    #controls { bottom: 20px; gap: 14px; }
+    .btn { font-size: 15px; padding: 13px 34px; }
+    .btn-roll:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(192,57,43,0.5); }
+    .btn-bank:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(212,168,67,0.5); }
+
+    #toolbar { bottom: 20px; right: 16px; }
+    .tool-btn { width: 42px; height: 42px; }
+
+    #instruction { bottom: 68px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ROTATE PROMPT -->
+<div id="rotate-prompt">
+  <div class="rotate-icon">📱</div>
+  <p>Draai je telefoon naar<br><strong>liggend formaat</strong><br>om te spelen</p>
+</div>
+
+<div id="game-container">
+
+  <!-- SETUP SCREEN -->
+  <div id="setup-screen">
+    <div id="setup-box">
+      <h1>Duizenden</h1>
+      <div class="subtitle">Het klassieke dobbelspel</div>
+      <label>Aantal spelers</label>
+      <div class="player-buttons">
+        <button class="player-btn" onclick="selectPlayerCount(2)">2</button>
+        <button class="player-btn" onclick="selectPlayerCount(3)">3</button>
+        <button class="player-btn" onclick="selectPlayerCount(4)">4</button>
+        <button class="player-btn" onclick="selectPlayerCount(5)">5</button>
+        <button class="player-btn" onclick="selectPlayerCount(6)">6</button>
+      </div>
+      <button id="start-btn" onclick="startGame()">STARTEN</button>
+    </div>
+  </div>
+
+  <!-- GAME TABLE -->
+  <div id="table">
+    <div id="felt"></div>
+    <div id="table-border"></div>
+    <canvas id="dice-canvas"></canvas>
+  </div>
+
+  <div id="player-indicator">SPELER 1</div>
+
+  <div id="score-panel">
+    <h2>Scorebord</h2>
+    <div id="score-rows"></div>
+    <div style="border-top:1px solid rgba(212,168,67,0.12); margin-top:4px; padding-top:4px;">
+      <div class="score-row"><span class="label" style="font-size:10px">Doel</span><span class="value" style="font-size:12px; color:rgba(212,168,67,0.4)">10.000</span></div>
+    </div>
+  </div>
+
+  <div id="turn-score-display">
+    <h2>Deze Beurt</h2>
+    <div id="turn-score-value">0</div>
+    <div id="min-warning">Min. 350</div>
+    <div id="selected-score">Selecteer dobbelstenen</div>
+  </div>
+
+  <div id="message"></div>
+  <div id="instruction">Tik op GOOIEN om te beginnen</div>
+
+  <div id="controls">
+    <button class="btn btn-roll" id="btn-roll" onclick="rollDice()">GOOIEN</button>
+    <button class="btn btn-bank" id="btn-bank" onclick="bankScore()" disabled>PAKKEN</button>
+  </div>
+
+  <div id="toolbar">
+    <button class="tool-btn" id="sound-btn" onclick="toggleSound()" title="Geluid">🔊</button>
+    <button class="tool-btn" onclick="toggleRules()" title="Spelregels">📖</button>
+  </div>
+
+  <div id="rules-overlay">
+    <div id="rules-content">
+      <h3>Duizenden — Spelregels</h3>
+      <p>Gooi 6 dobbelstenen en scoor punten. Eerste speler tot <strong>10.000</strong> wint!</p>
+      <p><strong>Puntentelling:</strong></p>
+      <ul>
+        <li>Eén = 100 punten</li>
+        <li>Vijf = 50 punten</li>
+        <li>Drie gelijke = waarde × 100 (drie zessen = 600)</li>
+        <li>Drie enen = 1.000 punten</li>
+        <li>Straat 1-2-3-4-5-6 in één worp = 1.000 punten</li>
+      </ul>
+      <p><strong>Minimum:</strong> Je moet minimaal <strong>350 punten</strong> per beurt halen om te mogen pakken.</p>
+      <p><strong>Elke worp:</strong> Tik op scorende dobbelstenen om ze te bewaren (schuiven naar onderkant). Geen score? <em>Farkle!</em> — alle beurtpunten weg.</p>
+      <p><strong>Hot dice:</strong> Alle 6 bewaard? Je mag opnieuw gooien met alle 6!</p>
+      <button id="close-rules" onclick="toggleRules()">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== GAME STATE =====================
+const state = {
+  numPlayers: 2,
+  scores: [],
+  currentPlayer: 0,
+  turnScore: 0,
+  selectedScore: 0,
+  dice: [],
+  phase: 'roll',
+  rolling: false,
+  animating: false,
+  keptCount: 0,
+  soundOn: true,
+};
+
+const GOAL = 10000;
+const MIN_TURN = 350;
+const canvas = document.getElementById('dice-canvas');
+const ctx = canvas.getContext('2d');
+let DIE_SIZE = 52;
+const DIE_RADIUS = 8;
+
+// ===================== roundRect POLYFILL (for older mobile browsers) =====================
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+    const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y,     x + w, y + h, r);
+    this.arcTo(x + w, y + h, x,     y + h, r);
+    this.arcTo(x,     y + h, x,     y,     r);
+    this.arcTo(x,     y,     x + w, y,     r);
+    this.closePath();
+  };
+}
+
+// ===================== RESPONSIVE SIZING =====================
+function calcDieSize() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
+  if (w === 0 || h === 0) {
+    // Canvas not yet laid out, use window dimensions
+    const ww = window.innerWidth;
+    const wh = window.innerHeight;
+    DIE_SIZE = Math.max(36, Math.min(62, Math.floor(Math.min(ww, wh) * 0.13)));
+    return;
+  }
+  DIE_SIZE = Math.max(36, Math.min(62, Math.floor(Math.min(w, h) * 0.13)));
+}
+
+// ===================== LOCK LANDSCAPE (if supported) =====================
+function tryLockLandscape() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  } catch(e) {}
+}
+
+// ===================== FULLSCREEN HELPER =====================
+function tryFullscreen() {
+  const el = document.documentElement;
+  try {
+    if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch(e) {}
+}
+
+// ===================== SETUP =====================
+let chosenPlayers = 2;
+
+function selectPlayerCount(n) {
+  chosenPlayers = n;
+  document.querySelectorAll('.player-btn').forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.textContent) === n);
+  });
+}
+
+selectPlayerCount(2);
+
+function startGame() {
+  tryLockLandscape();
+  tryFullscreen();
+
+  state.numPlayers = chosenPlayers;
+  state.scores = new Array(state.numPlayers).fill(0);
+  state.currentPlayer = 0;
+
+  document.getElementById('setup-screen').classList.add('hidden');
+  buildScoreboard();
+  updatePlayerIndicator();
+  resizeCanvas();
+  drawAllDice();
+}
+
+function buildScoreboard() {
+  const container = document.getElementById('score-rows');
+  container.innerHTML = '';
+  for (let i = 0; i < state.numPlayers; i++) {
+    const row = document.createElement('div');
+    row.className = 'score-row' + (i === 0 ? ' active' : '');
+    row.id = `row-p${i}`;
+    row.innerHTML = `<span class="label">Speler ${i + 1}</span><span class="value" id="score-p${i}">0</span>`;
+    container.appendChild(row);
+  }
+}
+
+// ===================== CANVAS SETUP =====================
+function resizeCanvas() {
+  const table = document.getElementById('table');
+  const dpr = window.devicePixelRatio || 1;
+  const w = table.clientWidth || window.innerWidth;
+  const h = table.clientHeight || window.innerHeight;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  calcDieSize();
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); drawAllDice(); });
+
+// ===================== KEPT DICE POSITIONS =====================
+function getKeptPosition(keptIndex) {
+  const tableW = canvas.width / (window.devicePixelRatio || 1);
+  const tableH = canvas.height / (window.devicePixelRatio || 1);
+  const spacing = DIE_SIZE + 8;
+  const totalW = 6 * spacing;
+  const startX = (tableW - totalW) / 2 + DIE_SIZE / 2 + 4;
+  const baseY = tableH - DIE_SIZE / 2 - 52;
+  return { x: startX + keptIndex * spacing, y: baseY };
+}
+
+// ===================== DICE DRAWING =====================
+const pipPositions = {
+  1: [[0.5, 0.5]],
+  2: [[0.25, 0.25], [0.75, 0.75]],
+  3: [[0.25, 0.25], [0.5, 0.5], [0.75, 0.75]],
+  4: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]],
+  5: [[0.25, 0.25], [0.75, 0.25], [0.5, 0.5], [0.25, 0.75], [0.75, 0.75]],
+  6: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.5], [0.75, 0.5], [0.25, 0.75], [0.75, 0.75]],
+};
+
+function drawDie(die) {
+  const { x, y, value, angle, selected, kept } = die;
+  const s = DIE_SIZE;
+  const r = DIE_RADIUS;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = selected ? 14 : kept ? 6 : 10;
+  ctx.shadowOffsetX = kept ? 1 : 2;
+  ctx.shadowOffsetY = kept ? 1 : 3;
+
+  ctx.beginPath();
+  ctx.roundRect(-s/2, -s/2, s, s, r);
+
+  const grad = ctx.createLinearGradient(-s/2, -s/2, s/2, s/2);
+  if (kept) {
+    grad.addColorStop(0, '#f0ece4');
+    grad.addColorStop(0.5, '#e4e0d8');
+    grad.addColorStop(1, '#d4d0c8');
+  } else {
+    grad.addColorStop(0, '#fefefe');
+    grad.addColorStop(0.3, '#f8f6f2');
+    grad.addColorStop(1, '#e8e4dc');
+  }
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.roundRect(-s/2, -s/2, s, s, r);
+  ctx.strokeStyle = selected ? 'rgba(212,168,67,0.9)' : kept ? 'rgba(212,168,67,0.3)' : 'rgba(0,0,0,0.12)';
+  ctx.lineWidth = selected ? 2.5 : 1;
+  ctx.stroke();
+
+  if (selected) {
+    ctx.beginPath();
+    ctx.roundRect(-s/2 - 3, -s/2 - 3, s + 6, s + 6, r + 3);
+    ctx.strokeStyle = 'rgba(212,168,67,0.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Inner bevel
+  ctx.beginPath();
+  ctx.roundRect(-s/2 + 1.5, -s/2 + 1.5, s - 3, s - 3, r - 1);
+  const ig = ctx.createLinearGradient(-s/2, -s/2, s/4, s/4);
+  ig.addColorStop(0, 'rgba(255,255,255,0.35)');
+  ig.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.strokeStyle = ig;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // Pips
+  if (value >= 1 && value <= 6) {
+    const pips = pipPositions[value];
+    const pipR = s * 0.075;
+    pips.forEach(([px, py]) => {
+      const cx = -s/2 + px * s;
+      const cy = -s/2 + py * s;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, pipR + 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, pipR, 0, Math.PI * 2);
+      if (value === 1 || value === 5) {
+        const pg = ctx.createRadialGradient(cx - 0.5, cy - 0.5, 0, cx, cy, pipR);
+        pg.addColorStop(0, '#d42020');
+        pg.addColorStop(1, '#a01515');
+        ctx.fillStyle = pg;
+      } else {
+        const pg = ctx.createRadialGradient(cx - 0.5, cy - 0.5, 0, cx, cy, pipR);
+        pg.addColorStop(0, '#444');
+        pg.addColorStop(1, '#1a1a1a');
+        ctx.fillStyle = pg;
+      }
+      ctx.fill();
+    });
+  }
+
+  ctx.restore();
+}
+
+function drawAllDice() {
+  const dpr = window.devicePixelRatio || 1;
+  const tableW = canvas.width / dpr;
+  const tableH = canvas.height / dpr;
+  // Clear entire canvas
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  if (state.keptCount > 0) {
+    ctx.save();
+    const pos = getKeptPosition(0);
+    ctx.font = `${Math.max(8, DIE_SIZE * 0.15)}px "Playfair Display", serif`;
+    ctx.fillStyle = 'rgba(212,168,67,0.3)';
+    ctx.fillText('B E W A A R D', pos.x - DIE_SIZE / 2, pos.y - DIE_SIZE / 2 - 6);
+    ctx.restore();
+  }
+
+  state.dice.filter(d => d.kept && !d.hidden).forEach(d => drawDie(d));
+  state.dice.filter(d => !d.kept && !d.hidden).forEach(d => drawDie(d));
+}
+
+// ===================== SLIDE ANIMATION =====================
+function animateSlideToKept(diceToSlide, callback) {
+  state.animating = true;
+  const duration = 350;
+  const start = performance.now();
+
+  let keptIdx = state.keptCount;
+  diceToSlide.forEach(die => {
+    die.slideStartX = die.x;
+    die.slideStartY = die.y;
+    die.slideStartAngle = die.angle;
+    const pos = getKeptPosition(keptIdx);
+    die.slideTargetX = pos.x;
+    die.slideTargetY = pos.y;
+    keptIdx++;
+  });
+
+  function frame(now) {
+    let t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+
+    diceToSlide.forEach(die => {
+      die.x = die.slideStartX + (die.slideTargetX - die.slideStartX) * ease;
+      die.y = die.slideStartY + (die.slideTargetY - die.slideStartY) * ease;
+      die.angle = die.slideStartAngle * (1 - ease);
+    });
+    drawAllDice();
+
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      diceToSlide.forEach(die => {
+        die.x = die.slideTargetX;
+        die.y = die.slideTargetY;
+        die.angle = 0;
+        die.kept = true;
+        die.selected = false;
+      });
+      state.keptCount = state.dice.filter(d => d.kept).length;
+      state.animating = false;
+      drawAllDice();
+      if (callback) callback();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ===================== ROLL ANIMATION =====================
+function getRandomPositions(count) {
+  const dpr = window.devicePixelRatio || 1;
+  const tableW = canvas.width / dpr;
+  const tableH = canvas.height / dpr;
+
+  // Safe play area — generous margins to avoid all UI panels
+  const pad = DIE_SIZE * 0.7;
+  const areaLeft = Math.max(tableW * 0.23, 170) + pad;
+  const areaRight = tableW - Math.max(tableW * 0.15, 130) - pad;
+  const areaTop = 55 + pad;
+  const areaBottom = tableH - 100 - pad;
+  const areaW = Math.max(areaRight - areaLeft, DIE_SIZE * 3);
+  const areaH = Math.max(areaBottom - areaTop, DIE_SIZE * 2);
+
+  // Predefined layout templates that always work for 1–6 dice
+  // Each position is a fraction [0–1, 0–1] within the safe area
+  const layouts = {
+    1: [[0.5, 0.5]],
+    2: [[0.3, 0.5], [0.7, 0.5]],
+    3: [[0.2, 0.4], [0.5, 0.6], [0.8, 0.4]],
+    4: [[0.2, 0.3], [0.8, 0.3], [0.2, 0.7], [0.8, 0.7]],
+    5: [[0.15, 0.3], [0.5, 0.25], [0.85, 0.3], [0.3, 0.75], [0.7, 0.75]],
+    6: [[0.15, 0.28], [0.5, 0.22], [0.85, 0.28], [0.15, 0.72], [0.5, 0.78], [0.85, 0.72]],
+  };
+
+  const template = layouts[Math.min(count, 6)] || layouts[6];
+  const positions = [];
+
+  // Max jitter: ensure dice can never touch (limited to fraction of min distance between template points)
+  const maxJitter = Math.min(areaW, areaH) * 0.06;
+
+  for (let i = 0; i < count; i++) {
+    const pt = template[i % template.length];
     positions.push({
-      x: baseX + (Math.random() - 0.5) * jitter * 2,
-      y: baseY + (Math.random() - 0.5) * jitter * 2,
+      x: areaLeft + pt[0] * areaW + (Math.random() - 0.5) * maxJitter * 2,
+      y: areaTop + pt[1] * areaH + (Math.random() - 0.5) * maxJitter * 2,
     });
   }
 
