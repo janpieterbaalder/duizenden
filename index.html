@@ -915,33 +915,50 @@ function animateSlideToKept(diceToSlide, callback) {
 function getRandomPositions(count) {
   const tableW = canvas.width / (window.devicePixelRatio || 1);
   const tableH = canvas.height / (window.devicePixelRatio || 1);
-  const positions = [];
-  const margin = DIE_SIZE + 20;
-  const cx = tableW / 2;
-  const cy = tableH / 2 - 15;
-  const spreadX = Math.min(tableW / 2 - margin, 240);
-  const spreadY = Math.min(tableH / 2 - margin - 20, 100);
 
-  // Minimum distance between dice centers — must be large enough so rotated dice never overlap
-  const minDist = DIE_SIZE * 1.55;
+  // Define the usable play area (avoid UI elements)
+  const areaLeft = DIE_SIZE + 30;
+  const areaRight = tableW - DIE_SIZE - 30;
+  const areaTop = DIE_SIZE + 50;
+  const areaBottom = tableH - DIE_SIZE - 90;
+  const areaW = areaRight - areaLeft;
+  const areaH = areaBottom - areaTop;
 
-  for (let i = 0; i < count; i++) {
-    let x, y, valid, attempts = 0;
-    do {
-      valid = true;
-      x = cx + (Math.random() - 0.5) * spreadX * 2;
-      y = cy + (Math.random() - 0.5) * spreadY * 2;
-      if (y > tableH - DIE_SIZE - 80) { valid = false; continue; }
-      if (y < DIE_SIZE + 40) { valid = false; continue; }
-      if (x < DIE_SIZE + 20) { valid = false; continue; }
-      if (x > tableW - DIE_SIZE - 20) { valid = false; continue; }
-      for (const p of positions) {
-        if (Math.hypot(p.x - x, p.y - y) < minDist) { valid = false; break; }
-      }
-      attempts++;
-    } while (!valid && attempts < 200);
-    positions.push({ x, y });
+  // Cell size ensures no overlap: die diagonal + generous padding
+  const cellSize = DIE_SIZE * 1.7;
+
+  // Calculate grid dimensions
+  const cols = Math.max(1, Math.floor(areaW / cellSize));
+  const rows = Math.max(1, Math.floor(areaH / cellSize));
+
+  // Generate all possible grid cells
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      cells.push({ col: c, row: r });
+    }
   }
+
+  // Shuffle cells
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+
+  // Pick cells and add jitter within each cell
+  const positions = [];
+  const jitter = cellSize * 0.2;
+
+  for (let i = 0; i < count && i < cells.length; i++) {
+    const cell = cells[i];
+    const baseX = areaLeft + (cell.col + 0.5) * (areaW / cols);
+    const baseY = areaTop + (cell.row + 0.5) * (areaH / rows);
+    positions.push({
+      x: baseX + (Math.random() - 0.5) * jitter * 2,
+      y: baseY + (Math.random() - 0.5) * jitter * 2,
+    });
+  }
+
   return positions;
 }
 
