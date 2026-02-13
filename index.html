@@ -655,11 +655,31 @@ const ctx = canvas.getContext('2d');
 let DIE_SIZE = 52;
 const DIE_RADIUS = 8;
 
+// ===================== roundRect POLYFILL (for older mobile browsers) =====================
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+    const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y,     x + w, y + h, r);
+    this.arcTo(x + w, y + h, x,     y + h, r);
+    this.arcTo(x,     y + h, x,     y,     r);
+    this.arcTo(x,     y,     x + w, y,     r);
+    this.closePath();
+  };
+}
+
 // ===================== RESPONSIVE SIZING =====================
 function calcDieSize() {
-  const w = canvas.width;
-  const h = canvas.height;
-  // Scale dice based on smallest dimension
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
+  if (w === 0 || h === 0) {
+    // Canvas not yet laid out, use window dimensions
+    const ww = window.innerWidth;
+    const wh = window.innerHeight;
+    DIE_SIZE = Math.max(36, Math.min(62, Math.floor(Math.min(ww, wh) * 0.13)));
+    return;
+  }
   DIE_SIZE = Math.max(36, Math.min(62, Math.floor(Math.min(w, h) * 0.13)));
 }
 
@@ -724,8 +744,8 @@ function buildScoreboard() {
 function resizeCanvas() {
   const table = document.getElementById('table');
   const dpr = window.devicePixelRatio || 1;
-  const w = table.clientWidth;
-  const h = table.clientHeight;
+  const w = table.clientWidth || window.innerWidth;
+  const h = table.clientHeight || window.innerHeight;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
   canvas.style.width = w + 'px';
@@ -847,9 +867,14 @@ function drawDie(die) {
 }
 
 function drawAllDice() {
-  const tableW = canvas.width / (window.devicePixelRatio || 1);
-  const tableH = canvas.height / (window.devicePixelRatio || 1);
-  ctx.clearRect(0, 0, tableW, tableH);
+  const dpr = window.devicePixelRatio || 1;
+  const tableW = canvas.width / dpr;
+  const tableH = canvas.height / dpr;
+  // Clear entire canvas
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
 
   if (state.keptCount > 0) {
     ctx.save();
