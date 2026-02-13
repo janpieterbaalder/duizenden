@@ -941,9 +941,10 @@ function getRandomPositions(count) {
   const tableW = canvas.width / (window.devicePixelRatio || 1);
   const tableH = canvas.height / (window.devicePixelRatio || 1);
 
-  // Define the usable play area (avoid UI elements)
-  const areaLeft = DIE_SIZE + 30;
-  const areaRight = tableW - DIE_SIZE - 30;
+  // Define the usable play area (avoid UI overlays)
+  // Score panel is ~180px wide on left, turn score ~150px on right
+  const areaLeft = Math.max(DIE_SIZE + 30, tableW * 0.22);
+  const areaRight = tableW - Math.max(DIE_SIZE + 30, tableW * 0.14);
   const areaTop = DIE_SIZE + 50;
   const areaBottom = tableH - DIE_SIZE - 90;
   const areaW = areaRight - areaLeft;
