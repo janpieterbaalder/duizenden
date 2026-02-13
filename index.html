@@ -270,14 +270,14 @@
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(212,168,67,0.25);
     border-radius: 12px;
-    padding: 8px 14px;
+    padding: 10px 16px;
     z-index: 20;
-    min-width: 130px;
+    min-width: 150px;
   }
 
   #score-panel h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--gold);
@@ -291,10 +291,11 @@
     justify-content: space-between;
     align-items: center;
     padding: 2px 0;
+    gap: 12px;
   }
 
-  .score-row .label { color: rgba(245,240,232,0.6); font-weight: 300; font-size: 11px; }
-  .score-row .value { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 14px; color: var(--gold-light); }
+  .score-row .label { color: rgba(245,240,232,0.6); font-weight: 300; font-size: 14px; }
+  .score-row .value { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: var(--gold-light); }
   .score-row.active .label { color: var(--gold-light); font-weight: 600; }
   .score-row.active .value { color: var(--gold); text-shadow: 0 0 8px rgba(212,168,67,0.4); }
 
@@ -308,15 +309,15 @@
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(212,168,67,0.25);
     border-radius: 12px;
-    padding: 8px 14px;
+    padding: 10px 16px;
     z-index: 20;
     text-align: right;
-    min-width: 120px;
+    min-width: 130px;
   }
 
   #turn-score-display h2 {
     font-family: 'Playfair Display', serif;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--gold);
@@ -326,7 +327,7 @@
   #turn-score-value {
     font-family: 'Playfair Display', serif;
     font-weight: 900;
-    font-size: clamp(24px, 5vw, 36px);
+    font-size: clamp(28px, 6vw, 40px);
     color: var(--gold-light);
     text-shadow: 0 2px 8px rgba(212,168,67,0.3);
     transition: color 0.3s;
@@ -334,9 +335,9 @@
   }
 
   #turn-score-value.below-min { color: #e07040; }
-  #min-warning { font-size: 9px; color: #e07040; margin-top: 1px; opacity: 0; transition: opacity 0.3s; }
+  #min-warning { font-size: 10px; color: #e07040; margin-top: 1px; opacity: 0; transition: opacity 0.3s; }
   #min-warning.show { opacity: 1; }
-  #selected-score { font-size: 10px; color: rgba(245,240,232,0.5); margin-top: 2px; }
+  #selected-score { font-size: 12px; color: rgba(245,240,232,0.5); margin-top: 2px; }
 
   /* ========== PLAYER INDICATOR — top center ========== */
   #player-indicator {
@@ -918,8 +919,11 @@ function getRandomPositions(count) {
   const margin = DIE_SIZE + 20;
   const cx = tableW / 2;
   const cy = tableH / 2 - 15;
-  const spreadX = Math.min(tableW / 2 - margin, 180);
-  const spreadY = Math.min(tableH / 2 - margin - 30, 80);
+  const spreadX = Math.min(tableW / 2 - margin, 240);
+  const spreadY = Math.min(tableH / 2 - margin - 20, 100);
+
+  // Minimum distance between dice centers — must be large enough so rotated dice never overlap
+  const minDist = DIE_SIZE * 1.55;
 
   for (let i = 0; i < count; i++) {
     let x, y, valid, attempts = 0;
@@ -928,12 +932,14 @@ function getRandomPositions(count) {
       x = cx + (Math.random() - 0.5) * spreadX * 2;
       y = cy + (Math.random() - 0.5) * spreadY * 2;
       if (y > tableH - DIE_SIZE - 80) { valid = false; continue; }
-      if (y < DIE_SIZE + 10) { valid = false; continue; }
+      if (y < DIE_SIZE + 40) { valid = false; continue; }
+      if (x < DIE_SIZE + 20) { valid = false; continue; }
+      if (x > tableW - DIE_SIZE - 20) { valid = false; continue; }
       for (const p of positions) {
-        if (Math.hypot(p.x - x, p.y - y) < DIE_SIZE + 8) { valid = false; break; }
+        if (Math.hypot(p.x - x, p.y - y) < minDist) { valid = false; break; }
       }
       attempts++;
-    } while (!valid && attempts < 100);
+    } while (!valid && attempts < 200);
     positions.push({ x, y });
   }
   return positions;
@@ -953,8 +959,8 @@ function animateRoll(callback) {
     die.startY = tableH / 2 + (Math.random() - 0.5) * 100;
     die.targetX = targets[i].x;
     die.targetY = targets[i].y;
-    die.targetAngle = (Math.random() - 0.5) * 0.7;
-    die.spinSpeed = (Math.random() - 0.5) * 18;
+    die.targetAngle = (Math.random() - 0.5) * 0.45;
+    die.spinSpeed = (Math.random() - 0.5) * 14;
   });
 
   function frame(now) {
