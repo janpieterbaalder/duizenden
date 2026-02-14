@@ -110,14 +110,14 @@
 
   #setup-box {
     text-align: center;
-    padding: 20px 30px;
+    padding: 14px 24px;
     background: radial-gradient(ellipse at 50% 40%, var(--felt-light) 0%, var(--felt) 40%, var(--felt-dark) 100%);
-    border-radius: 16px;
-    box-shadow: 0 0 0 6px var(--wood-dark), 0 0 0 9px var(--wood), 0 0 0 12px var(--wood-light), 0 0 0 15px var(--wood-dark), 0 0 30px rgba(0,0,0,0.8);
+    border-radius: 14px;
+    box-shadow: 0 0 0 5px var(--wood-dark), 0 0 0 8px var(--wood), 0 0 0 11px var(--wood-light), 0 0 0 14px var(--wood-dark), 0 0 25px rgba(0,0,0,0.8);
     position: relative;
-    max-width: 88vw;
-    max-height: 85vh;
-    max-height: 85dvh;
+    max-width: 92vw;
+    max-height: 92vh;
+    max-height: 92dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -126,7 +126,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    border-radius: 16px;
+    border-radius: 14px;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
     background-size: 256px 256px;
     opacity: 0.5;
@@ -136,18 +136,19 @@
 
   #setup-box h1 {
     font-family: 'Playfair Display', serif;
-    font-size: clamp(24px, 5vw, 42px);
+    font-size: clamp(20px, 4vh, 38px);
     font-weight: 900;
     color: var(--gold);
-    text-shadow: 0 2px 20px rgba(0,0,0,0.5);
-    margin-bottom: 2px;
+    text-shadow: 0 2px 15px rgba(0,0,0,0.5);
+    margin-bottom: 0;
     position: relative;
+    line-height: 1.1;
   }
 
   #setup-box .subtitle {
-    font-size: clamp(11px, 2vw, 14px);
+    font-size: clamp(10px, 1.8vh, 13px);
     color: rgba(245,240,232,0.5);
-    margin-bottom: 16px;
+    margin-bottom: clamp(6px, 1.5vh, 14px);
     font-style: italic;
     position: relative;
   }
@@ -155,34 +156,34 @@
   #setup-box label {
     display: block;
     font-family: 'Playfair Display', serif;
-    font-size: clamp(13px, 2.5vw, 16px);
+    font-size: clamp(11px, 2vh, 15px);
     color: var(--cream);
-    margin-bottom: 10px;
+    margin-bottom: clamp(4px, 1vh, 8px);
     letter-spacing: 1px;
     position: relative;
   }
 
   .player-buttons {
     display: flex;
-    gap: 6px;
+    gap: 5px;
     justify-content: center;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
     position: relative;
   }
 
   .player-buttons:last-of-type {
-    margin-bottom: 16px;
+    margin-bottom: 0;
   }
 
   .player-btn {
-    width: clamp(34px, 7vw, 48px);
-    height: clamp(34px, 7vw, 48px);
-    border-radius: 9px;
+    width: clamp(30px, 6vh, 46px);
+    height: clamp(30px, 6vh, 46px);
+    border-radius: 8px;
     border: 2px solid rgba(212,168,67,0.3);
     background: rgba(0,0,0,0.3);
     color: var(--gold-light);
     font-family: 'Playfair Display', serif;
-    font-size: clamp(15px, 3vw, 20px);
+    font-size: clamp(13px, 2.5vh, 18px);
     font-weight: 900;
     cursor: pointer;
     transition: all 0.2s;
@@ -192,15 +193,25 @@
   .player-btn.selected {
     border-color: var(--gold);
     background: rgba(212,168,67,0.25);
-    box-shadow: 0 0 20px rgba(212,168,67,0.3);
+    box-shadow: 0 0 15px rgba(212,168,67,0.3);
   }
+
+  .setup-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 3vw, 24px);
+    position: relative;
+  }
+
+  .setup-left { position: relative; }
 
   #start-btn {
     font-family: 'Playfair Display', serif;
     font-weight: 700;
-    font-size: clamp(14px, 3vw, 18px);
+    font-size: clamp(13px, 2.5vh, 17px);
     letter-spacing: 2px;
-    padding: 10px 44px;
+    padding: 0 clamp(16px, 3vw, 28px);
     border: none;
     border-radius: 10px;
     cursor: pointer;
@@ -210,7 +221,10 @@
     transition: all 0.2s;
     position: relative;
     -webkit-tap-highlight-color: transparent;
-    min-height: 42px;
+    white-space: nowrap;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
   }
 
   /* ========== TABLE ========== */
@@ -259,6 +273,23 @@
       0 0 0 13px var(--wood-dark);
     pointer-events: none;
     z-index: 2;
+  }
+
+  /* Buist watermark embedded in felt */
+  #felt-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(80px, 18vw, 220px);
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.04);
+    pointer-events: none;
+    z-index: 0;
+    white-space: nowrap;
+    text-transform: uppercase;
   }
 
   #dice-canvas {
@@ -575,29 +606,34 @@
     <div id="setup-box">
       <h1>Duizenden</h1>
       <div class="subtitle">Het klassieke dobbelspel</div>
-      <label>Aantal spelers</label>
-      <div class="player-buttons">
-        <button class="player-btn" onclick="selectPlayerCount(2)">2</button>
-        <button class="player-btn" onclick="selectPlayerCount(3)">3</button>
-        <button class="player-btn" onclick="selectPlayerCount(4)">4</button>
-        <button class="player-btn" onclick="selectPlayerCount(5)">5</button>
-        <button class="player-btn" onclick="selectPlayerCount(6)">6</button>
-        <button class="player-btn" onclick="selectPlayerCount(7)">7</button>
+      <div class="setup-row">
+        <div class="setup-left">
+          <label>Aantal spelers</label>
+          <div class="player-buttons">
+            <button class="player-btn" onclick="selectPlayerCount(2)">2</button>
+            <button class="player-btn" onclick="selectPlayerCount(3)">3</button>
+            <button class="player-btn" onclick="selectPlayerCount(4)">4</button>
+            <button class="player-btn" onclick="selectPlayerCount(5)">5</button>
+            <button class="player-btn" onclick="selectPlayerCount(6)">6</button>
+          </div>
+          <div class="player-buttons">
+            <button class="player-btn" onclick="selectPlayerCount(7)">7</button>
+            <button class="player-btn" onclick="selectPlayerCount(8)">8</button>
+            <button class="player-btn" onclick="selectPlayerCount(9)">9</button>
+            <button class="player-btn" onclick="selectPlayerCount(10)">10</button>
+            <button class="player-btn" onclick="selectPlayerCount(11)">11</button>
+          </div>
+        </div>
+        <button id="start-btn" onclick="startGame()">STARTEN</button>
       </div>
-      <div class="player-buttons">
-        <button class="player-btn" onclick="selectPlayerCount(8)">8</button>
-        <button class="player-btn" onclick="selectPlayerCount(9)">9</button>
-        <button class="player-btn" onclick="selectPlayerCount(10)">10</button>
-        <button class="player-btn" onclick="selectPlayerCount(11)">11</button>
-        <button class="player-btn" onclick="selectPlayerCount(12)">12</button>
-      </div>
-      <button id="start-btn" onclick="startGame()">STARTEN</button>
     </div>
   </div>
 
   <!-- GAME TABLE -->
   <div id="table">
-    <div id="felt"></div>
+    <div id="felt">
+      <div id="felt-watermark">Buist</div>
+    </div>
     <div id="table-border"></div>
     <canvas id="dice-canvas"></canvas>
   </div>
@@ -645,8 +681,8 @@
         <li>Straat 1-2-3-4-5-6 in één worp = 1.000 punten</li>
       </ul>
       <p><strong>Minimum:</strong> Je moet minimaal <strong>350 punten</strong> per beurt halen om te mogen pakken.</p>
-      <p><strong>Elke worp:</strong> Tik op scorende dobbelstenen om ze te bewaren (schuiven naar onderkant). Geen score? <em>Farkle!</em> — alle beurtpunten weg.</p>
-      <p><strong>Hot dice:</strong> Alle 6 bewaard? Je mag opnieuw gooien met alle 6!</p>
+      <p><strong>Elke worp:</strong> Tik op scorende dobbelstenen om ze te bewaren (schuiven naar onderkant). Geen score? <em>De tragiek!</em> — alle beurtpunten weg.</p>
+      <p><strong>En door!</strong> Alle 6 bewaard? Je mag opnieuw gooien met alle 6!</p>
       <button id="close-rules" onclick="toggleRules()">Sluiten</button>
     </div>
   </div>
@@ -962,52 +998,54 @@ function getRandomPositions(count) {
   const tableW = canvas.width / dpr;
   const tableH = canvas.height / dpr;
 
-  // Safe play area — generous margins to avoid all UI panels
-  const pad = DIE_SIZE * 0.7;
-  const areaLeft = Math.max(tableW * 0.23, 170) + pad;
-  const areaRight = tableW - Math.max(tableW * 0.15, 130) - pad;
-  const areaTop = 55 + pad;
-  const areaBottom = tableH - 100 - pad;
-  const areaW = Math.max(areaRight - areaLeft, DIE_SIZE * 3);
-  const areaH = Math.max(areaBottom - areaTop, DIE_SIZE * 2);
+  // Safe play area — avoid scoreboard (left), turn panel (right), header (top), buttons (bottom)
+  const areaLeft = Math.max(tableW * 0.24, 180);
+  const areaRight = tableW - Math.max(tableW * 0.16, 140);
+  const areaTop = 60;
+  const areaBottom = tableH - 95;
+  const areaW = areaRight - areaLeft;
+  const areaH = areaBottom - areaTop;
 
-  // Predefined layout templates that always work for 1–6 dice
-  // Each position is a fraction [0–1, 0–1] within the safe area
-  // Vertical spread maximized: rows at 0.15 and 0.85 (70% apart)
-  const layouts = {
-    1: [[0.5, 0.5]],
-    2: [[0.35, 0.5], [0.65, 0.5]],
-    3: [[0.2, 0.5], [0.5, 0.5], [0.8, 0.5]],
-    4: [[0.25, 0.15], [0.75, 0.15], [0.25, 0.85], [0.75, 0.85]],
-    5: [[0.2, 0.15], [0.5, 0.15], [0.8, 0.15], [0.35, 0.85], [0.65, 0.85]],
-    6: [[0.2, 0.15], [0.5, 0.15], [0.8, 0.15], [0.2, 0.85], [0.5, 0.85], [0.8, 0.85]],
-  };
-
-  const template = layouts[Math.min(count, 6)] || layouts[6];
+  // Minimum distance: die diagonal (DIE_SIZE * sqrt(2)) + padding
+  const minDist = DIE_SIZE * 1.6;
   const positions = [];
 
-  // Calculate minimum distance between any two template points at current area size
-  let minTemplateDist = Infinity;
-  for (let i = 0; i < template.length; i++) {
-    for (let j = i + 1; j < template.length; j++) {
-      const dx = (template[i][0] - template[j][0]) * areaW;
-      const dy = (template[i][1] - template[j][1]) * areaH;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d < minTemplateDist) minTemplateDist = d;
-    }
-  }
-
-  // Jitter must be small enough that dice can never touch
-  // Each die can move maxJitter in any direction, so two dice can close by 2*maxJitter
-  const safeGap = DIE_SIZE * 1.5;
-  const maxJitter = template.length <= 1 ? 10 : Math.max(0, (minTemplateDist - safeGap) / 4);
-
+  // Place dice one by one with rejection sampling
+  // Use many attempts + fallback to guarantee placement
   for (let i = 0; i < count; i++) {
-    const pt = template[i % template.length];
-    positions.push({
-      x: areaLeft + pt[0] * areaW + (Math.random() - 0.5) * maxJitter * 2,
-      y: areaTop + pt[1] * areaH + (Math.random() - 0.5) * maxJitter * 2,
-    });
+    let bestX = areaLeft + areaW / 2;
+    let bestY = areaTop + areaH / 2;
+    let bestMinDist = 0;
+
+    // Try many random positions, keep the one with best (largest) minimum distance to others
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const x = areaLeft + DIE_SIZE * 0.6 + Math.random() * (areaW - DIE_SIZE * 1.2);
+      const y = areaTop + DIE_SIZE * 0.6 + Math.random() * (areaH - DIE_SIZE * 1.2);
+
+      // Find minimum distance to all already-placed dice
+      let closest = Infinity;
+      for (const p of positions) {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < closest) closest = d;
+      }
+
+      // If far enough from all others, accept immediately
+      if (closest >= minDist) {
+        bestX = x;
+        bestY = y;
+        bestMinDist = closest;
+        break;
+      }
+
+      // Otherwise track the best candidate so far
+      if (closest > bestMinDist) {
+        bestMinDist = closest;
+        bestX = x;
+        bestY = y;
+      }
+    }
+
+    positions.push({ x: bestX, y: bestY });
   }
 
   return positions;
@@ -1126,7 +1164,7 @@ function doRoll() {
     const freeDice = state.dice.filter(d => !d.kept);
     const freeValues = freeDice.map(d => d.value);
     if (!canScoreAny(freeValues)) {
-      showMessage('FARKLE!', true);
+      showMessage('DE TRAGIEK!', true);
       state.turnScore = 0;
       state.selectedScore = 0;
       updateTurnDisplay();
@@ -1152,7 +1190,7 @@ function rollDice() {
       document.getElementById('btn-bank').disabled = true;
       animateSlideToKept(sel, () => {
         if (state.dice.every(d => d.kept)) {
-          showMessage('HOT DICE!', false);
+          showMessage('EN DOOR!', false);
           setTimeout(() => { hideMessage(); state.dice = []; state.keptCount = 0; doRoll(); }, 1100);
           return;
         }
