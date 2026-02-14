@@ -472,6 +472,13 @@
 
   .tool-btn:active { transform: scale(0.9); }
   .tool-btn.muted { color: rgba(212,168,67,0.35); }
+  .tool-btn.ghost-btn {
+    background: transparent;
+    border-color: transparent;
+    color: transparent;
+    box-shadow: none;
+  }
+  .tool-btn.ghost-btn:active { transform: scale(0.9); }
 
   /* ========== MESSAGE ========== */
   #message {
@@ -548,6 +555,50 @@
   #rules-content ul { list-style: none; padding-left: 0; }
   #rules-content li::before { content: '• '; color: var(--gold); }
   #close-rules { margin-top: 14px; background: var(--gold); color: var(--wood-dark); border: none; padding: 10px 28px; border-radius: 8px; font-family: 'Playfair Display', serif; font-weight: 700; cursor: pointer; font-size: 14px; min-height: 44px; -webkit-tap-highlight-color: transparent; }
+
+  /* Strategy overlay */
+  #strategy-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    padding: 12px;
+  }
+  #strategy-overlay.show { display: flex; }
+  #strategy-content {
+    max-width: 520px;
+    width: 100%;
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: linear-gradient(135deg, rgba(26,92,42,0.95), rgba(15,61,26,0.95));
+    border: 2px solid rgba(212,168,67,0.4);
+    border-radius: 16px;
+    padding: 20px 24px;
+    color: var(--cream);
+  }
+  #strategy-content h3 { font-family: 'Playfair Display', serif; color: var(--gold); font-size: 18px; margin-bottom: 14px; text-align: center; }
+  .strat-rule { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 10px; border-left: 3px solid var(--gold); }
+  .strat-num { flex-shrink: 0; width: 26px; height: 26px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 900; font-size: 14px; color: #0f3d1a; }
+  .strat-rule strong { font-family: 'Playfair Display', serif; color: var(--gold-light); font-size: 13px; display: block; margin-bottom: 2px; }
+  .strat-rule p { font-size: 11.5px; line-height: 1.4; margin: 0; color: rgba(245,240,232,0.75); }
+  .strat-rule em { color: var(--gold); font-style: italic; }
+  #close-strategy, #close-strategy-bottom { margin-top: 14px; background: var(--gold); color: var(--wood-dark); border: none; padding: 10px 28px; border-radius: 8px; font-family: 'Playfair Display', serif; font-weight: 700; cursor: pointer; font-size: 14px; min-height: 44px; -webkit-tap-highlight-color: transparent; width: 100%; }
+  .strat-section-title { font-family: 'Playfair Display', serif; color: var(--gold); font-size: 13px; text-align: center; margin-top: 16px; margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .strat-stats { padding: 8px 12px; background: rgba(0,0,0,0.2); border-radius: 10px; }
+  .stat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .stat-row:last-child { margin-bottom: 0; }
+  .stat-dice { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 13px; color: var(--gold-light); width: 14px; text-align: center; flex-shrink: 0; }
+  .stat-bar { flex: 1; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; overflow: hidden; }
+  .stat-fill { height: 100%; border-radius: 5px; }
+  .stat-pct { font-size: 11px; color: rgba(245,240,232,0.5); width: 38px; text-align: right; flex-shrink: 0; }
+  .strat-straight { text-align: center; padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 10px; margin-bottom: 4px; }
+  .straight-pct { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 22px; color: var(--gold-light); }
+  .straight-desc { display: block; font-size: 11px; color: rgba(245,240,232,0.5); margin-top: 2px; }
 
   /* ========== DESKTOP ENHANCEMENTS ========== */
   @media (min-width: 901px) {
@@ -664,6 +715,7 @@
   </div>
 
   <div id="toolbar">
+    <button class="tool-btn ghost-btn" id="strategy-btn" onclick="toggleStrategy()" title="Strategie">&#8203;</button>
     <button class="tool-btn" id="sound-btn" onclick="toggleSound()" title="Geluid">🔊</button>
     <button class="tool-btn" onclick="toggleRules()" title="Spelregels">📖</button>
   </div>
@@ -684,6 +736,66 @@
       <p><strong>Elke worp:</strong> Tik op scorende dobbelstenen om ze te bewaren (schuiven naar onderkant). Geen score? <em>De tragiek!</em> — alle beurtpunten weg.</p>
       <p><strong>En door!</strong> Alle 6 bewaard? Je mag opnieuw gooien met alle 6!</p>
       <button id="close-rules" onclick="toggleRules()">Sluiten</button>
+    </div>
+  </div>
+
+  <div id="strategy-overlay">
+    <div id="strategy-content">
+      <h3>De Gouden Regels</h3>
+      <div class="strat-rule">
+        <span class="strat-num">1</span>
+        <div>
+          <strong>Pak altijd maar één scorende dobbelsteen</strong>
+          <p>Bewaar slechts één 1 of één 5 per worp. Kies altijd de 1 boven de 5. <em>Uitzondering: pak drie dezelfde altijd als set.</em></p>
+        </div>
+      </div>
+      <div class="strat-rule">
+        <span class="strat-num">2</span>
+        <div>
+          <strong>Met 5–6 dobbelstenen: altijd doorgooien</strong>
+          <p>Farkle-risico is slechts 3–8%. Stoppen loont vrijwel nooit.</p>
+        </div>
+      </div>
+      <div class="strat-rule">
+        <span class="strat-num">3</span>
+        <div>
+          <strong>Met 4 dobbelstenen: doorgooien onder de 900</strong>
+          <p>Break-even punt: ~900 punten. Zit je erboven? Pakken.</p>
+        </div>
+      </div>
+      <div class="strat-rule">
+        <span class="strat-num">4</span>
+        <div>
+          <strong>Met 3 dobbelstenen: doorgooien onder de 300</strong>
+          <p>27,8% farkle-kans. Stop zodra je 350+ hebt.</p>
+        </div>
+      </div>
+      <div class="strat-rule">
+        <span class="strat-num">5</span>
+        <div>
+          <strong>Met 1–2 dobbelstenen: alleen gooien als het moet</strong>
+          <p>44–67% farkle-kans. Alleen gooien als je onder 350 zit.</p>
+        </div>
+      </div>
+      <button id="close-strategy" style="display:none" onclick="toggleStrategy()">Sluiten</button>
+
+      <div class="strat-section-title">De tragiek!-kansen</div>
+      <div class="strat-stats">
+        <div class="stat-row"><span class="stat-dice">6</span><div class="stat-bar"><div class="stat-fill" style="width:4.6%;background:#4CAF50;"></div></div><span class="stat-pct">3,1%</span></div>
+        <div class="stat-row"><span class="stat-dice">5</span><div class="stat-bar"><div class="stat-fill" style="width:11.6%;background:#7CB342;"></div></div><span class="stat-pct">7,7%</span></div>
+        <div class="stat-row"><span class="stat-dice">4</span><div class="stat-bar"><div class="stat-fill" style="width:23.5%;background:#FFC107;"></div></div><span class="stat-pct">15,7%</span></div>
+        <div class="stat-row"><span class="stat-dice">3</span><div class="stat-bar"><div class="stat-fill" style="width:41.7%;background:#FF9800;"></div></div><span class="stat-pct">27,8%</span></div>
+        <div class="stat-row"><span class="stat-dice">2</span><div class="stat-bar"><div class="stat-fill" style="width:66.7%;background:#FF5722;"></div></div><span class="stat-pct">44,4%</span></div>
+        <div class="stat-row"><span class="stat-dice">1</span><div class="stat-bar"><div class="stat-fill" style="width:100%;background:#C62828;"></div></div><span class="stat-pct">66,7%</span></div>
+      </div>
+
+      <div class="strat-section-title">Kans op straat (1-2-3-4-5-6)</div>
+      <div class="strat-straight">
+        <span class="straight-pct">1,54%</span>
+        <span class="straight-desc">= 1 op 65 worpen met 6 dobbelstenen</span>
+      </div>
+
+      <button id="close-strategy-bottom" onclick="toggleStrategy()">Sluiten</button>
     </div>
   </div>
 </div>
@@ -1331,6 +1443,7 @@ function showMessage(text, isFarkle) {
 
 function hideMessage() { document.getElementById('message').className = ''; }
 function toggleRules() { document.getElementById('rules-overlay').classList.toggle('show'); }
+function toggleStrategy() { document.getElementById('strategy-overlay').classList.toggle('show'); }
 
 // ===================== SOUND TOGGLE =====================
 function toggleSound() {
