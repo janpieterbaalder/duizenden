@@ -600,6 +600,91 @@
   .straight-pct { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 22px; color: var(--gold-light); }
   .straight-desc { display: block; font-size: 11px; color: rgba(245,240,232,0.5); margin-top: 2px; }
 
+  /* ========== WIN OVERLAY ========== */
+  #win-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  #win-overlay.show { display: flex; }
+
+  #win-text {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(28px, 7vw, 56px);
+    color: var(--gold);
+    text-shadow: 0 4px 30px rgba(212,168,67,0.6), 0 0 60px rgba(212,168,67,0.3);
+    text-align: center;
+    animation: winPulse 1.5s ease-in-out infinite;
+    z-index: 510;
+  }
+
+  @keyframes winPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+  }
+
+  #win-subtitle {
+    font-family: 'Crimson Pro', serif;
+    font-size: clamp(14px, 3vw, 22px);
+    color: rgba(245,240,232,0.7);
+    margin-top: 10px;
+    z-index: 510;
+  }
+
+  #win-restart {
+    margin-top: 30px;
+    background: linear-gradient(135deg, var(--red-accent), #a02020);
+    color: white;
+    border: none;
+    padding: 14px 40px;
+    border-radius: 12px;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 510;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 20px rgba(192,57,43,0.4);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #confetti-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 505;
+    pointer-events: none;
+  }
+
+  /* ========== CHEAT FEEDBACK ========== */
+  #cheat-feedback {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    font-size: 80px;
+    z-index: 600;
+    pointer-events: none;
+    opacity: 0;
+    transition: none;
+  }
+  #cheat-feedback.pop {
+    animation: cheatPop 0.6s ease forwards;
+  }
+  @keyframes cheatPop {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    30% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+  }
+
   /* ========== DESKTOP ENHANCEMENTS ========== */
   @media (min-width: 901px) {
     #table {
@@ -800,6 +885,17 @@
   </div>
 </div>
 
+<!-- WIN OVERLAY -->
+<div id="win-overlay">
+  <canvas id="confetti-canvas"></canvas>
+  <div id="win-text"></div>
+  <div id="win-subtitle"></div>
+  <button id="win-restart" onclick="location.reload()">OPNIEUW SPELEN</button>
+</div>
+
+<!-- CHEAT FEEDBACK -->
+<div id="cheat-feedback"></div>
+
 <script>
 // ===================== GAME STATE =====================
 const state = {
@@ -814,6 +910,14 @@ const state = {
   animating: false,
   keptCount: 0,
   soundOn: true,
+  // Eerlijke eindronde
+  finalRound: false,        // true zodra iemand >= GOAL haalt
+  finalRoundTrigger: -1,    // de speler die als eerste >= GOAL haalde
+  gameOver: false,
+  // Geheime cheatmodus
+  cheatActive: false,
+  cheatClickCount: 0,
+  cheatClickTimer: null,
 };
 
 const GOAL = 10000;
@@ -1239,6 +1343,16 @@ function isValidSelection(sel) {
 }
 
 // ===================== GAME LOGIC =====================
+function cheatRoll() {
+  if (state.cheatActive) {
+    // 30% extra kans op een 1. Normaal: 1/6 ≈ 16.7%. Met cheat: 46.7%.
+    // Verdeling: 46.7% kans op 1, de rest gelijkmatig over 2-6 (elk ~10.67%)
+    if (Math.random() < 0.467) return 1;
+    return Math.floor(Math.random() * 5) + 2; // 2-6
+  }
+  return Math.floor(Math.random() * 6) + 1;
+}
+
 function doRoll() {
   if (state.rolling || state.animating) return;
   const btnRoll = document.getElementById('btn-roll');
@@ -1254,14 +1368,14 @@ function doRoll() {
     state.keptCount = 0;
     for (let i = 0; i < 6; i++) {
       state.dice.push({
-        value: 1, finalValue: Math.floor(Math.random() * 6) + 1,
+        value: 1, finalValue: cheatRoll(),
         x: tableW / 2, y: tableH / 2,
         angle: 0, selected: false, kept: false, hidden: false,
       });
     }
   } else {
     state.dice.forEach(d => {
-      if (!d.kept) { d.finalValue = Math.floor(Math.random() * 6) + 1; d.selected = false; }
+      if (!d.kept) { d.finalValue = cheatRoll(); d.selected = false; }
     });
   }
 
@@ -1368,13 +1482,20 @@ function finishBank() {
   }
   state.scores[state.currentPlayer] += state.turnScore;
   updateScoreboard();
-  if (state.scores[state.currentPlayer] >= GOAL) {
-    showMessage(`SPELER ${state.currentPlayer + 1} WINT!`, false);
-    document.getElementById('btn-roll').disabled = true;
-    document.getElementById('btn-bank').disabled = true;
-    document.getElementById('instruction').textContent = 'Spel afgelopen! Ververs om opnieuw te spelen.';
+
+  // Check of iemand de drempel heeft bereikt — start eindronde
+  if (!state.finalRound && state.scores[state.currentPlayer] >= GOAL) {
+    state.finalRound = true;
+    state.finalRoundTrigger = state.currentPlayer;
+    showMessage('LAATSTE RONDE!', false);
+    setTimeout(() => { hideMessage(); finishBankContinue(); }, 1500);
     return;
   }
+
+  finishBankContinue();
+}
+
+function finishBankContinue() {
   state.turnScore = 0;
   state.selectedScore = 0;
   updateTurnDisplay();
@@ -1382,7 +1503,24 @@ function finishBank() {
 }
 
 function nextPlayer() {
-  state.currentPlayer = (state.currentPlayer + 1) % state.numPlayers;
+  const nextP = (state.currentPlayer + 1) % state.numPlayers;
+
+  // Check of de eindronde voorbij is (volgende speler is de trigger-speler)
+  if (state.finalRound && nextP === state.finalRoundTrigger) {
+    state.gameOver = true;
+    let maxScore = -1;
+    let winner = -1;
+    for (let i = 0; i < state.numPlayers; i++) {
+      if (state.scores[i] > maxScore) {
+        maxScore = state.scores[i];
+        winner = i;
+      }
+    }
+    endGame(winner);
+    return;
+  }
+
+  state.currentPlayer = nextP;
   state.turnScore = 0;
   state.selectedScore = 0;
   state.dice = [];
@@ -1428,7 +1566,10 @@ function updateSelectedDisplay() {
 }
 
 function updatePlayerIndicator() {
-  document.getElementById('player-indicator').textContent = `SPELER ${state.currentPlayer + 1}`;
+  const label = `SPELER ${state.currentPlayer + 1}`;
+  const indicator = document.getElementById('player-indicator');
+  indicator.textContent = state.finalRound ? `${label} — LAATSTE RONDE` : label;
+  indicator.style.borderColor = state.finalRound ? 'rgba(192,57,43,0.6)' : 'rgba(212,168,67,0.25)';
   for (let i = 0; i < state.numPlayers; i++) {
     const row = document.getElementById(`row-p${i}`);
     if (row) row.classList.toggle('active', i === state.currentPlayer);
@@ -1541,6 +1682,185 @@ document.addEventListener('touchstart', function initAudio() {
   getAudioCtx();
   document.removeEventListener('touchstart', initAudio);
 }, { once: true });
+
+// ===================== END GAME — CONFETTI & FANFARE =====================
+function endGame(winnerIndex) {
+  state.gameOver = true;
+  document.getElementById('btn-roll').disabled = true;
+  document.getElementById('btn-bank').disabled = true;
+  document.getElementById('instruction').textContent = '';
+
+  const overlay = document.getElementById('win-overlay');
+  document.getElementById('win-text').textContent = `Speler ${winnerIndex + 1} heeft gewonnen!`;
+  document.getElementById('win-subtitle').textContent = `Score: ${state.scores[winnerIndex].toLocaleString('nl-NL')} punten`;
+  overlay.classList.add('show');
+
+  startConfetti();
+  if (state.soundOn) playVictoryTune();
+}
+
+// ---- Confetti engine ----
+function startConfetti() {
+  const cvs = document.getElementById('confetti-canvas');
+  const cCtx = cvs.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  cvs.width = window.innerWidth * dpr;
+  cvs.height = window.innerHeight * dpr;
+  cvs.style.width = window.innerWidth + 'px';
+  cvs.style.height = window.innerHeight + 'px';
+  cCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const colors = ['#d4a843','#c0392b','#2ecc71','#3498db','#f39c12','#9b59b6','#e74c3c','#1abc9c','#f0d078','#e07040'];
+  const pieces = [];
+
+  // Lanceer twee confetti-kanon salvo's
+  for (let salvo = 0; salvo < 2; salvo++) {
+    setTimeout(() => {
+      for (let i = 0; i < 120; i++) {
+        pieces.push({
+          x: W * (0.2 + Math.random() * 0.6),
+          y: H + 10,
+          vx: (Math.random() - 0.5) * 14,
+          vy: -(8 + Math.random() * 14),
+          size: 4 + Math.random() * 6,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360,
+          rotSpeed: (Math.random() - 0.5) * 12,
+          shape: Math.random() > 0.5 ? 'rect' : 'circle',
+          gravity: 0.12 + Math.random() * 0.08,
+          drag: 0.98 + Math.random() * 0.015,
+          opacity: 1,
+        });
+      }
+    }, salvo * 600);
+  }
+
+  let running = true;
+  function frame() {
+    cCtx.save();
+    cCtx.setTransform(1, 0, 0, 1, 0, 0);
+    cCtx.clearRect(0, 0, cvs.width, cvs.height);
+    cCtx.restore();
+
+    let alive = 0;
+    for (const p of pieces) {
+      p.vy += p.gravity;
+      p.vx *= p.drag;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotSpeed;
+      if (p.y > H + 50) p.opacity -= 0.02;
+      if (p.opacity <= 0) continue;
+      alive++;
+
+      cCtx.save();
+      cCtx.translate(p.x, p.y);
+      cCtx.rotate(p.rotation * Math.PI / 180);
+      cCtx.globalAlpha = Math.max(0, p.opacity);
+      cCtx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        cCtx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      } else {
+        cCtx.beginPath();
+        cCtx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        cCtx.fill();
+      }
+      cCtx.restore();
+    }
+
+    if (alive > 0 && running) {
+      requestAnimationFrame(frame);
+    }
+  }
+  requestAnimationFrame(frame);
+
+  // Stop na 8 seconden
+  setTimeout(() => { running = false; }, 8000);
+}
+
+// ---- Victory tune (vrolijk deuntje) ----
+function playVictoryTune() {
+  try {
+    const c = getAudioCtx();
+    const now = c.currentTime;
+
+    // Vrolijk fanfare-deuntje in C majeur
+    const notes = [
+      { freq: 523.25, start: 0,    dur: 0.15 },  // C5
+      { freq: 659.25, start: 0.15, dur: 0.15 },  // E5
+      { freq: 783.99, start: 0.30, dur: 0.15 },  // G5
+      { freq: 1046.50, start: 0.45, dur: 0.30 }, // C6
+      { freq: 783.99, start: 0.80, dur: 0.12 },  // G5
+      { freq: 1046.50, start: 0.95, dur: 0.50 }, // C6 (lang)
+    ];
+
+    notes.forEach(n => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.type = 'square';
+      osc.frequency.value = n.freq;
+      gain.gain.setValueAtTime(0.08, now + n.start);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + n.start + n.dur);
+      osc.start(now + n.start);
+      osc.stop(now + n.start + n.dur + 0.05);
+    });
+
+    // Tweede laag — akkoorden voor meer diepte
+    const chords = [
+      { freqs: [261.63, 329.63, 392.00], start: 0,    dur: 0.40 }, // C maj
+      { freqs: [392.00, 493.88, 587.33], start: 0.45, dur: 0.35 }, // G maj
+      { freqs: [523.25, 659.25, 783.99], start: 0.85, dur: 0.60 }, // C maj hoog
+    ];
+
+    chords.forEach(ch => {
+      ch.freqs.forEach(freq => {
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.connect(gain);
+        gain.connect(c.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.035, now + ch.start);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + ch.start + ch.dur);
+        osc.start(now + ch.start);
+        osc.stop(now + ch.start + ch.dur + 0.05);
+      });
+    });
+  } catch(e) {}
+}
+
+// ===================== CHEAT MODE =====================
+document.getElementById('turn-score-display').addEventListener('click', () => {
+  if (state.gameOver) return;
+
+  state.cheatClickCount++;
+  clearTimeout(state.cheatClickTimer);
+
+  state.cheatClickTimer = setTimeout(() => {
+    state.cheatClickCount = 0;
+  }, 800); // Reset als er >800ms pauze is
+
+  if (state.cheatClickCount >= 3) {
+    state.cheatClickCount = 0;
+    state.cheatActive = !state.cheatActive;
+    showCheatFeedback(state.cheatActive);
+  }
+});
+
+function showCheatFeedback(active) {
+  const el = document.getElementById('cheat-feedback');
+  el.textContent = active ? '\u2713' : '\u2717';
+  el.style.color = active ? '#2ecc71' : '#e74c3c';
+  el.classList.remove('pop');
+  // Force reflow to restart animation
+  void el.offsetWidth;
+  el.classList.add('pop');
+  setTimeout(() => el.classList.remove('pop'), 700);
+}
 
 // ===================== INIT =====================
 drawAllDice();
