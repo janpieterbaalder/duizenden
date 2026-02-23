@@ -1505,8 +1505,8 @@ function finishBankContinue() {
 function nextPlayer() {
   const nextP = (state.currentPlayer + 1) % state.numPlayers;
 
-  // Check of de eindronde voorbij is (volgende speler is de trigger-speler)
-  if (state.finalRound && nextP === state.finalRoundTrigger) {
+  // Check of de eindronde voorbij is (ronde is afgelopen wanneer we terug bij speler 0 komen)
+  if (state.finalRound && nextP === 0) {
     state.gameOver = true;
     let maxScore = -1;
     let winner = -1;
