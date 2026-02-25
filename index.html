@@ -1337,9 +1337,34 @@ function canScoreAny(values) {
   return false;
 }
 
+function canDieScore(die) {
+  const v = die.value;
+  if (v === 1 || v === 5) return true;
+  const freeDice = state.dice.filter(d => !d.kept);
+  const count = freeDice.filter(d => d.value === v).length;
+  if (count >= 3) return true;
+  if (freeDice.length === 6) {
+    const counts = [0,0,0,0,0,0,0];
+    freeDice.forEach(d => counts[d.value]++);
+    if (counts.slice(1).every(c => c === 1)) return true;
+  }
+  return false;
+}
+
 function isValidSelection(sel) {
   if (sel.length === 0) return false;
-  return calculateScore(sel.map(d => d.value)) > 0;
+  const values = sel.map(d => d.value);
+  if (calculateScore(values) === 0) return false;
+  // Controleer dat elke geselecteerde dobbelsteen bijdraagt aan de score
+  const counts = [0,0,0,0,0,0,0];
+  values.forEach(v => counts[v]++);
+  if (values.length === 6 && counts.slice(1).every(c => c === 1)) return true;
+  for (let v = 1; v <= 6; v++) {
+    if (counts[v] >= 3) counts[v] -= 3;
+  }
+  counts[1] = 0;
+  counts[5] = 0;
+  return counts.every(c => c === 0);
 }
 
 // ===================== GAME LOGIC =====================
@@ -1432,6 +1457,9 @@ function selectDie(index) {
   if (state.phase !== 'select' || state.rolling || state.animating) return;
   const die = state.dice[index];
   if (die.kept) return;
+
+  // Voorkom selectie van niet-scorende dobbelstenen
+  if (!die.selected && !canDieScore(die)) return;
 
   die.selected = !die.selected;
   if (state.soundOn) playClickSound();
