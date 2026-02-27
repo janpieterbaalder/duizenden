@@ -981,36 +981,36 @@
       <div class="strat-rule">
         <span class="strat-num">1</span>
         <div>
-          <strong>Pak altijd maar één scorende dobbelsteen</strong>
-          <p>Bewaar slechts één 1 of één 5 per worp. Kies altijd de 1 boven de 5. <em>Uitzondering: pak drie dezelfde altijd als set.</em></p>
+          <strong>Pak alle scorende dobbelstenen</strong>
+          <p>Bewaar alle 1-en en 5-en die je gooit, plus drie-van-een-soort. <em>Uitzondering: met 6 dobbelstenen en lage score, bewaar alleen één 1.</em></p>
         </div>
       </div>
       <div class="strat-rule">
         <span class="strat-num">2</span>
+        <div>
+          <strong>En-door is goud waard</strong>
+          <p>Als je alle 6 dobbelstenen kunt bewaren, doe het altijd. Je krijgt 6 verse dobbelstenen — slechts 3% farkle-kans!</p>
+        </div>
+      </div>
+      <div class="strat-rule">
+        <span class="strat-num">3</span>
         <div>
           <strong>Met 5–6 dobbelstenen: altijd doorgooien</strong>
           <p>Farkle-risico is slechts 3–8%. Stoppen loont vrijwel nooit.</p>
         </div>
       </div>
       <div class="strat-rule">
-        <span class="strat-num">3</span>
-        <div>
-          <strong>Met 4 dobbelstenen: doorgooien onder de 900</strong>
-          <p>Break-even punt: ~900 punten. Zit je erboven? Pakken.</p>
-        </div>
-      </div>
-      <div class="strat-rule">
         <span class="strat-num">4</span>
         <div>
-          <strong>Met 3 dobbelstenen: doorgooien onder de 300</strong>
-          <p>27,8% farkle-kans. Stop zodra je 350+ hebt.</p>
+          <strong>Met 4 dobbelstenen: doorgooien onder de 1.000</strong>
+          <p>Break-even punt: ~1.000 punten. Zit je erboven? Pakken.</p>
         </div>
       </div>
       <div class="strat-rule">
         <span class="strat-num">5</span>
         <div>
-          <strong>Met 1–2 dobbelstenen: alleen gooien als het moet</strong>
-          <p>44–67% farkle-kans. Alleen gooien als je onder 350 zit.</p>
+          <strong>Met 1–3 dobbelstenen: pakken zodra het kan</strong>
+          <p>27–67% farkle-kans. Pak zodra je 350+ (of 400+ bij 3 dobbelstenen) hebt.</p>
         </div>
       </div>
       <button id="close-strategy" style="display:none" onclick="toggleStrategy()">Sluiten</button>
@@ -2140,82 +2140,176 @@ function showCheatFeedback(active) {
 }
 
 // ===================== BOT AI =====================
+// Optimale strategie berekend via Dynamic Programming over alle mogelijke worpen.
+// V-tabel: verwachte beurtwaarde per staat (beurtscore, dobbelstenen over).
+// 121 score-bins (0-6000 in stappen van 50) × 6 dobbelsteenaantallen.
+const BOT_V_STEP = 50;
+const BOT_V_MAX = 6000;
+const BOT_V = [
+  [174,152,166,207,298,459],[188,163,176,224,335,501],[202,174,187,250,376,543],
+  [216,185,206,290,417,584],[231,196,236,332,455,627],[245,224,280,372,495,670],
+  [260,260,324,409,536,714],[350,350,360,449,578,757],[400,400,400,491,620,801],
+  [450,450,450,533,663,844],[500,500,500,575,705,889],[550,550,550,617,747,933],
+  [600,600,600,659,790,978],[650,650,650,701,834,1023],[700,700,700,743,878,1068],
+  [750,750,750,785,922,1113],[800,800,800,827,966,1159],[850,850,850,869,1010,1204],
+  [900,900,900,911,1054,1251],[950,950,950,953,1100,1297],[1000,1000,1000,1000,1146,1344],
+  [1050,1050,1050,1050,1192,1390],[1100,1100,1100,1100,1238,1437],
+  [1150,1150,1150,1150,1284,1483],[1200,1200,1200,1200,1330,1530],
+  [1250,1250,1250,1250,1376,1576],[1300,1300,1300,1300,1422,1623],
+  [1350,1350,1350,1350,1468,1669],[1400,1400,1400,1400,1514,1716],
+  [1450,1450,1450,1450,1560,1762],[1500,1500,1500,1500,1607,1809],
+  [1550,1550,1550,1550,1653,1856],[1600,1600,1600,1600,1699,1903],
+  [1650,1650,1650,1650,1745,1950],[1700,1700,1700,1700,1791,1997],
+  [1750,1750,1750,1750,1837,2044],[1800,1800,1800,1800,1883,2091],
+  [1850,1850,1850,1850,1929,2138],[1900,1900,1900,1900,1975,2186],
+  [1950,1950,1950,1950,2021,2233],[2000,2000,2000,2000,2067,2280],
+  [2050,2050,2050,2050,2114,2327],[2100,2100,2100,2100,2160,2374],
+  [2150,2150,2150,2150,2206,2421],[2200,2200,2200,2200,2252,2469],
+  [2250,2250,2250,2250,2298,2517],[2300,2300,2300,2300,2344,2564],
+  [2350,2350,2350,2350,2390,2612],[2400,2400,2400,2400,2436,2660],
+  [2450,2450,2450,2450,2482,2708],[2500,2500,2500,2500,2528,2756],
+  [2550,2550,2550,2550,2574,2803],[2600,2600,2600,2600,2621,2851],
+  [2650,2650,2650,2650,2667,2899],[2700,2700,2700,2700,2713,2947],
+  [2750,2750,2750,2750,2759,2995],[2800,2800,2800,2800,2805,3043],
+  [2850,2850,2850,2850,2851,3091],[2900,2900,2900,2900,2900,3139],
+  [2950,2950,2950,2950,2950,3188],[3000,3000,3000,3000,3000,3236],
+  [3050,3050,3050,3050,3050,3285],[3100,3100,3100,3100,3100,3333],
+  [3150,3150,3150,3150,3150,3381],[3200,3200,3200,3200,3200,3430],
+  [3250,3250,3250,3250,3250,3478],[3300,3300,3300,3300,3300,3527],
+  [3350,3350,3350,3350,3350,3575],[3400,3400,3400,3400,3400,3623],
+  [3450,3450,3450,3450,3450,3672],[3500,3500,3500,3500,3500,3720],
+  [3550,3550,3550,3550,3550,3769],[3600,3600,3600,3600,3600,3817],
+  [3650,3650,3650,3650,3650,3865],[3700,3700,3700,3700,3700,3914],
+  [3750,3750,3750,3750,3750,3962],[3800,3800,3800,3800,3800,4011],
+  [3850,3850,3850,3850,3850,4059],[3900,3900,3900,3900,3900,4108],
+  [3950,3950,3950,3950,3950,4156],[4000,4000,4000,4000,4000,4204],
+  [4050,4050,4050,4050,4050,4253],[4100,4100,4100,4100,4100,4301],
+  [4150,4150,4150,4150,4150,4349],[4200,4200,4200,4200,4200,4398],
+  [4250,4250,4250,4250,4250,4446],[4300,4300,4300,4300,4300,4495],
+  [4350,4350,4350,4350,4350,4543],[4400,4400,4400,4400,4400,4591],
+  [4450,4450,4450,4450,4450,4640],[4500,4500,4500,4500,4500,4688],
+  [4550,4550,4550,4550,4550,4737],[4600,4600,4600,4600,4600,4785],
+  [4650,4650,4650,4650,4650,4833],[4700,4700,4700,4700,4700,4882],
+  [4750,4750,4750,4750,4750,4930],[4800,4800,4800,4800,4800,4978],
+  [4850,4850,4850,4850,4850,5027],[4900,4900,4900,4900,4900,5075],
+  [4950,4950,4950,4950,4950,5123],[5000,5000,5000,5000,5000,5172],
+  [5050,5050,5050,5050,5050,5218],[5100,5100,5100,5100,5100,5267],
+  [5150,5150,5150,5150,5150,5315],[5200,5200,5200,5200,5200,5363],
+  [5250,5250,5250,5250,5250,5411],[5300,5300,5300,5300,5300,5460],
+  [5350,5350,5350,5350,5350,5508],[5400,5400,5400,5400,5400,5556],
+  [5450,5450,5450,5450,5450,5605],[5500,5500,5500,5500,5500,5653],
+  [5550,5550,5550,5550,5550,5701],[5600,5600,5600,5600,5600,5749],
+  [5650,5650,5650,5650,5650,5798],[5700,5700,5700,5700,5700,5846],
+  [5750,5750,5750,5750,5750,5894],[5800,5800,5800,5800,5800,5943],
+  [5850,5850,5850,5850,5850,5991],[5900,5900,5900,5900,5900,6040],
+  [5950,5950,5950,5950,5950,6088],[6000,6000,6000,6000,6000,6137]
+];
+
+function botGetV(turnScore, diceToRoll) {
+  if (turnScore >= BOT_V_MAX) return turnScore;
+  const sb = Math.min(Math.round(turnScore / BOT_V_STEP), BOT_V.length - 1);
+  return BOT_V[sb][diceToRoll - 1];
+}
+
 function isBotTurn() {
   return state.isBot[state.currentPlayer] && !state.gameOver;
 }
 
-// Bot strategie: kies de beste scorende dobbelstenen
+// Vind alle geldige bewaar-opties voor een set dobbelsteenwaarden.
+// Retourneert [{score, kept, kPerValue: [k1,..,k6]}]
+function botFindKeepOptions(values) {
+  const n = values.length;
+  const counts = [0,0,0,0,0,0,0];
+  values.forEach(v => counts[v]++);
+  // Straat (alleen bij exact 6 dobbelstenen 1-2-3-4-5-6)
+  if (n === 6 && counts.slice(1).every(c => c === 1)) {
+    return [{ score: 1000, kept: 6, kPerValue: [0,1,1,1,1,1,1] }];
+  }
+  const choicesPerValue = [];
+  for (let v = 1; v <= 6; v++) {
+    if (v === 1 || v === 5) {
+      const opts = [];
+      for (let k = 0; k <= counts[v]; k++) opts.push(k);
+      choicesPerValue[v] = opts;
+    } else {
+      choicesPerValue[v] = counts[v] >= 3 ? [0, 3] : [0];
+    }
+  }
+  const results = [];
+  for (const k1 of choicesPerValue[1]) {
+    for (const k2 of choicesPerValue[2]) {
+      for (const k3 of choicesPerValue[3]) {
+        for (const k4 of choicesPerValue[4]) {
+          for (const k5 of choicesPerValue[5]) {
+            for (const k6 of choicesPerValue[6]) {
+              const totalKept = k1 + k2 + k3 + k4 + k5 + k6;
+              if (totalKept === 0) continue;
+              const kept = [];
+              for (let i = 0; i < k1; i++) kept.push(1);
+              for (let i = 0; i < k2; i++) kept.push(2);
+              for (let i = 0; i < k3; i++) kept.push(3);
+              for (let i = 0; i < k4; i++) kept.push(4);
+              for (let i = 0; i < k5; i++) kept.push(5);
+              for (let i = 0; i < k6; i++) kept.push(6);
+              const score = calculateScore(kept);
+              if (score > 0) {
+                results.push({ score, kept: totalKept, kPerValue: [0, k1, k2, k3, k4, k5, k6] });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return results;
+}
+
+// Bot strategie: kies de wiskundig optimale dobbelstenen via V-tabel lookup
 function botSelectDice() {
   const freeDice = state.dice.filter(d => !d.kept);
   const values = freeDice.map(d => d.value);
-  const counts = [0,0,0,0,0,0,0];
-  values.forEach(v => counts[v]++);
+  const dRolled = freeDice.length;
 
-  // Check straat
-  if (freeDice.length === 6 && counts.slice(1).every(c => c === 1)) {
-    freeDice.forEach(d => { d.selected = true; });
-    return;
-  }
+  const options = botFindKeepOptions(values);
+  if (options.length === 0) return;
 
-  // Selecteer drie-van-een-soort eerst
-  for (let v = 1; v <= 6; v++) {
-    if (counts[v] >= 3) {
-      let picked = 0;
-      freeDice.forEach(d => {
-        if (!d.selected && d.value === v && picked < 3) {
-          d.selected = true;
-          picked++;
-        }
-      });
-      counts[v] -= 3;
+  // Evalueer elke optie via de V-tabel
+  let bestVal = -Infinity;
+  let bestOpt = options[0];
+  for (const opt of options) {
+    const newScore = state.turnScore + opt.score;
+    const newDice = dRolled - opt.kept > 0 ? dRolled - opt.kept : 6;
+    const val = botGetV(newScore, newDice);
+    if (val > bestVal) {
+      bestVal = val;
+      bestOpt = opt;
     }
   }
 
-  // Selecteer losse 1'en en 5'en (strategie: pak slechts 1 per worp tenzij weinig dobbelstenen over)
-  const remainingFree = freeDice.filter(d => !d.selected && !d.kept).length;
-  const anyTripleSelected = freeDice.some(d => d.selected);
-
-  if (!anyTripleSelected) {
-    // Geen triple: pak één scorende dobbelsteen (voorkeur voor 1 boven 5)
-    let picked = false;
-    for (const d of freeDice) {
-      if (!d.selected && d.value === 1 && !picked) {
-        d.selected = true;
-        picked = true;
-        break;
-      }
-    }
-    if (!picked) {
-      for (const d of freeDice) {
-        if (!d.selected && d.value === 5 && !picked) {
-          d.selected = true;
-          picked = true;
-          break;
-        }
-      }
+  // Selecteer de dobbelstenen die bij de optimale keuze horen
+  const toSelect = bestOpt.kPerValue.slice(); // [0, k1, k2, k3, k4, k5, k6]
+  for (const d of freeDice) {
+    if (toSelect[d.value] > 0) {
+      d.selected = true;
+      toSelect[d.value]--;
     }
   }
 }
 
-// Bot beslissing: doorgoooien of pakken?
+// Bot beslissing: doorgooien of pakken? Gebaseerd op V-tabel.
 function botShouldBank(turnScore, diceRemaining) {
-  // Eindronde: altijd doorgooien als score laag is
+  // Eindronde: altijd doorgooien als totaal nog niet genoeg is om te winnen
   if (state.finalRound && state.scores[state.currentPlayer] + turnScore < GOAL) {
     return false;
   }
-
-  // Strategie gebaseerd op de gouden regels
-  if (diceRemaining >= 5) return false;                          // 5-6 dobbelstenen: altijd doorgooien
-  if (diceRemaining === 4) return turnScore >= 900;              // 4 dobbelstenen: pakken boven 900
-  if (diceRemaining === 3) return turnScore >= MIN_TURN;         // 3 dobbelstenen: pakken als >= 350
-  return turnScore >= MIN_TURN;                                  // 1-2 dobbelstenen: pakken als mogelijk
+  // Pak als de beurtscore >= verwachte waarde van doorgooien
+  return turnScore >= botGetV(turnScore, diceRemaining);
 }
 
 function botPlay() {
   if (!isBotTurn()) return;
 
   if (state.phase === 'roll') {
-    // Bot gooit
     setTimeout(() => {
       if (!isBotTurn()) return;
       rollDice();
@@ -2228,21 +2322,19 @@ function botAfterRoll() {
   if (!isBotTurn()) return;
   if (state.phase !== 'select') return;
 
-  // Bot selecteert dobbelstenen na een korte pauze
   setTimeout(() => {
     if (!isBotTurn() || state.phase !== 'select') return;
 
     botSelectDice();
 
     const sel = state.dice.filter(d => d.selected && !d.kept);
-    if (sel.length === 0) return; // Zou niet moeten voorkomen als er scorende dobbelstenen zijn
+    if (sel.length === 0) return;
 
     const score = calculateScore(sel.map(d => d.value));
     state.selectedScore = score;
     updateSelectedDisplay();
     drawAllDice();
 
-    // Bereken hoeveel dobbelstenen overblijven na selectie
     const keptAfter = state.keptCount + sel.length;
     const diceRemaining = keptAfter >= 6 ? 6 : 6 - keptAfter;
     const potentialScore = state.turnScore + score;
@@ -2251,10 +2343,8 @@ function botAfterRoll() {
       if (!isBotTurn()) return;
 
       if (potentialScore >= MIN_TURN && botShouldBank(potentialScore, diceRemaining)) {
-        // Pakken
         bankScore();
       } else {
-        // Doorgooien
         rollDice();
       }
     }, 1000);
