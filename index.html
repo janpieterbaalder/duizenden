@@ -206,7 +206,7 @@
 
   .setup-left { position: relative; }
 
-  #start-btn {
+  #start-btn, .setup-action-btn {
     font-family: 'Playfair Display', serif;
     font-weight: 700;
     font-size: clamp(13px, 2.5vh, 17px);
@@ -225,6 +225,124 @@
     align-self: stretch;
     display: flex;
     align-items: center;
+  }
+
+  .setup-action-btn {
+    align-self: auto;
+    padding: 10px 28px;
+    margin-top: 10px;
+    justify-content: center;
+  }
+
+  .setup-action-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  /* Setup steps */
+  .setup-step { display: none; position: relative; }
+  .setup-step.active { display: block; }
+
+  /* Mode buttons */
+  .mode-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 8px;
+    position: relative;
+  }
+
+  .mode-btn {
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 2px solid rgba(212,168,67,0.3);
+    background: rgba(0,0,0,0.3);
+    color: var(--gold-light);
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(12px, 2.2vh, 16px);
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    text-align: center;
+    min-width: 120px;
+  }
+
+  .mode-btn .mode-icon { font-size: 24px; display: block; margin-bottom: 4px; }
+  .mode-btn .mode-label { display: block; }
+
+  .mode-btn.selected {
+    border-color: var(--gold);
+    background: rgba(212,168,67,0.25);
+    box-shadow: 0 0 15px rgba(212,168,67,0.3);
+  }
+
+  /* Bot count selector for single player */
+  .bot-count-section {
+    margin-top: 10px;
+  }
+
+  .bot-count-section label {
+    display: block;
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(11px, 2vh, 15px);
+    color: var(--cream);
+    margin-bottom: clamp(4px, 1vh, 8px);
+    letter-spacing: 1px;
+    position: relative;
+  }
+
+  /* Player name inputs */
+  .name-inputs-section {
+    margin-top: 10px;
+    max-height: 40vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .name-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    justify-content: center;
+  }
+
+  .name-input-label {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(10px, 1.8vh, 13px);
+    color: var(--gold-light);
+    min-width: 70px;
+    text-align: right;
+  }
+
+  .name-input {
+    width: 150px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(212,168,67,0.3);
+    background: rgba(0,0,0,0.4);
+    color: var(--cream);
+    font-family: 'Crimson Pro', Georgia, serif;
+    font-size: clamp(12px, 2vh, 15px);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .name-input:focus {
+    border-color: var(--gold);
+  }
+
+  .name-input:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .name-input-tag {
+    font-size: clamp(9px, 1.5vh, 11px);
+    color: rgba(212,168,67,0.5);
+    font-style: italic;
+    min-width: 30px;
   }
 
   /* ========== TABLE ========== */
@@ -337,8 +455,8 @@
     gap: 12px;
   }
 
-  .score-row .label { color: rgba(245,240,232,0.6); font-weight: 300; font-size: 14px; }
-  .score-row .value { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: var(--gold-light); }
+  .score-row .label { color: rgba(245,240,232,0.6); font-weight: 300; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+  .score-row .value { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 16px; color: var(--gold-light); }
   .score-row.active .label { color: var(--gold-light); font-weight: 600; }
   .score-row.active .value { color: var(--gold); text-shadow: 0 0 8px rgba(212,168,67,0.4); }
 
@@ -742,25 +860,59 @@
     <div id="setup-box">
       <h1>Duizenden</h1>
       <div class="subtitle">Het klassieke dobbelspel</div>
-      <div class="setup-row">
-        <div class="setup-left">
-          <label>Aantal spelers</label>
-          <div class="player-buttons">
-            <button class="player-btn" onclick="selectPlayerCount(2)">2</button>
-            <button class="player-btn" onclick="selectPlayerCount(3)">3</button>
-            <button class="player-btn" onclick="selectPlayerCount(4)">4</button>
-            <button class="player-btn" onclick="selectPlayerCount(5)">5</button>
-            <button class="player-btn" onclick="selectPlayerCount(6)">6</button>
-          </div>
-          <div class="player-buttons">
-            <button class="player-btn" onclick="selectPlayerCount(7)">7</button>
-            <button class="player-btn" onclick="selectPlayerCount(8)">8</button>
-            <button class="player-btn" onclick="selectPlayerCount(9)">9</button>
-            <button class="player-btn" onclick="selectPlayerCount(10)">10</button>
-            <button class="player-btn" onclick="selectPlayerCount(11)">11</button>
-          </div>
+
+      <!-- Step 1: Kies modus -->
+      <div id="step-mode" class="setup-step active">
+        <label>Kies spelmodus</label>
+        <div class="mode-buttons">
+          <button class="mode-btn" onclick="selectMode('single', this)">
+            <span class="mode-icon">🤖</span>
+            <span class="mode-label">1 Speler</span>
+          </button>
+          <button class="mode-btn" onclick="selectMode('multi', this)">
+            <span class="mode-icon">👥</span>
+            <span class="mode-label">Multiplayer</span>
+          </button>
         </div>
-        <button id="start-btn" onclick="startGame()">STARTEN</button>
+      </div>
+
+      <!-- Step 2a: Single player — kies aantal spelers (2-4) -->
+      <div id="step-single" class="setup-step">
+        <label>Met hoeveel spelers? (inclusief bots)</label>
+        <div class="player-buttons">
+          <button class="player-btn" onclick="selectBotCount(2)">2</button>
+          <button class="player-btn" onclick="selectBotCount(3)">3</button>
+          <button class="player-btn" onclick="selectBotCount(4)">4</button>
+        </div>
+        <button class="setup-action-btn" id="btn-start-single" onclick="startGame()" disabled>STARTEN</button>
+      </div>
+
+      <!-- Step 2b: Multiplayer — kies aantal spelers (2-12) -->
+      <div id="step-multi-count" class="setup-step">
+        <label>Aantal spelers</label>
+        <div class="player-buttons">
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(2)">2</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(3)">3</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(4)">4</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(5)">5</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(6)">6</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(7)">7</button>
+        </div>
+        <div class="player-buttons">
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(8)">8</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(9)">9</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(10)">10</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(11)">11</button>
+          <button class="player-btn mp-btn" onclick="selectPlayerCount(12)">12</button>
+        </div>
+        <button class="setup-action-btn" id="btn-to-names" onclick="goToNameStep()" disabled>VOLGENDE</button>
+      </div>
+
+      <!-- Step 3: Multiplayer — namen invoeren -->
+      <div id="step-names" class="setup-step">
+        <label>Voer spelernamen in</label>
+        <div class="name-inputs-section" id="name-inputs-container"></div>
+        <button class="setup-action-btn" onclick="startGame()">STARTEN</button>
       </div>
     </div>
   </div>
@@ -918,7 +1070,13 @@ const state = {
   cheatActive: false,
   cheatClickCount: 0,
   cheatClickTimer: null,
+  // Spelmodus & namen
+  mode: 'multi',            // 'single' of 'multi'
+  playerNames: [],          // namen van alle spelers
+  isBot: [],                // boolean array: true als speler een bot is
 };
+
+const BOT_NAMES = ['Jacco', 'Bernard', 'Simon'];
 
 const GOAL = 10000;
 const MIN_TURN = 350;
@@ -975,23 +1133,97 @@ function tryFullscreen() {
 
 // ===================== SETUP =====================
 let chosenPlayers = 2;
+let chosenMode = null;
+
+function selectMode(mode, btn) {
+  chosenMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+
+  // Verberg alle stappen, toon de juiste
+  document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
+
+  if (mode === 'single') {
+    document.getElementById('step-single').classList.add('active');
+    chosenPlayers = 0; // reset
+  } else {
+    document.getElementById('step-multi-count').classList.add('active');
+    chosenPlayers = 0; // reset
+    document.getElementById('btn-to-names').disabled = true;
+    document.querySelectorAll('.mp-btn').forEach(btn => btn.classList.remove('selected'));
+  }
+}
+
+function selectBotCount(n) {
+  chosenPlayers = n;
+  document.querySelectorAll('#step-single .player-btn').forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.textContent) === n);
+  });
+  document.getElementById('btn-start-single').disabled = false;
+}
 
 function selectPlayerCount(n) {
   chosenPlayers = n;
-  document.querySelectorAll('.player-btn').forEach(btn => {
+  document.querySelectorAll('.mp-btn').forEach(btn => {
     btn.classList.toggle('selected', parseInt(btn.textContent) === n);
   });
+  document.getElementById('btn-to-names').disabled = false;
 }
 
-selectPlayerCount(2);
+function goToNameStep() {
+  if (chosenPlayers < 2) return;
+  document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-names').classList.add('active');
+  buildNameInputs();
+}
+
+function buildNameInputs() {
+  const container = document.getElementById('name-inputs-container');
+  container.innerHTML = '';
+  for (let i = 0; i < chosenPlayers; i++) {
+    const row = document.createElement('div');
+    row.className = 'name-input-row';
+    row.innerHTML = `
+      <span class="name-input-label">Speler ${i + 1}</span>
+      <input class="name-input" type="text" id="name-input-${i}" placeholder="Speler ${i + 1}" maxlength="20" autocomplete="off">
+    `;
+    container.appendChild(row);
+  }
+  // Focus op eerste input
+  setTimeout(() => {
+    const first = document.getElementById('name-input-0');
+    if (first) first.focus();
+  }, 100);
+}
 
 function startGame() {
   tryLockLandscape();
   tryFullscreen();
 
-  state.numPlayers = chosenPlayers;
+  state.mode = chosenMode || 'multi';
+  state.numPlayers = chosenPlayers || 2;
   state.scores = new Array(state.numPlayers).fill(0);
   state.currentPlayer = 0;
+  state.playerNames = [];
+  state.isBot = [];
+
+  if (state.mode === 'single') {
+    // Speler 1 is de mens, de rest zijn bots
+    state.playerNames.push('Jij');
+    state.isBot.push(false);
+    for (let i = 1; i < state.numPlayers; i++) {
+      state.playerNames.push(BOT_NAMES[i - 1] || `Bot ${i}`);
+      state.isBot.push(true);
+    }
+  } else {
+    // Multiplayer: lees namen uit inputs
+    for (let i = 0; i < state.numPlayers; i++) {
+      const input = document.getElementById(`name-input-${i}`);
+      const name = input ? input.value.trim() : '';
+      state.playerNames.push(name || `Speler ${i + 1}`);
+      state.isBot.push(false);
+    }
+  }
 
   document.getElementById('setup-screen').classList.add('hidden');
   buildScoreboard();
@@ -1007,7 +1239,8 @@ function buildScoreboard() {
     const row = document.createElement('div');
     row.className = 'score-row' + (i === 0 ? ' active' : '');
     row.id = `row-p${i}`;
-    row.innerHTML = `<span class="label">Speler ${i + 1}</span><span class="value" id="score-p${i}">0</span>`;
+    const displayName = state.playerNames[i] + (state.isBot[i] ? ' 🤖' : '');
+    row.innerHTML = `<span class="label">${displayName}</span><span class="value" id="score-p${i}">0</span>`;
     container.appendChild(row);
   }
 }
@@ -1423,8 +1656,15 @@ function doRoll() {
       return;
     }
     state.phase = 'select';
-    document.getElementById('instruction').textContent = 'Tik op scorende dobbelstenen om ze te bewaren';
+    if (isBotTurn()) {
+      document.getElementById('instruction').textContent = `${state.playerNames[state.currentPlayer]} kiest dobbelstenen...`;
+    } else {
+      document.getElementById('instruction').textContent = 'Tik op scorende dobbelstenen om ze te bewaren';
+    }
     drawAllDice();
+
+    // Bot selecteert automatisch
+    botAfterRoll();
   });
 }
 
@@ -1561,6 +1801,13 @@ function nextPlayer() {
   document.getElementById('btn-roll').disabled = false;
   document.getElementById('btn-bank').disabled = true;
   document.getElementById('instruction').textContent = 'Tik op GOOIEN om te beginnen';
+
+  // Als het een bot is, laat de bot spelen
+  if (isBotTurn()) {
+    document.getElementById('btn-roll').disabled = true;
+    document.getElementById('instruction').textContent = `${state.playerNames[state.currentPlayer]} is aan het nadenken...`;
+    botPlay();
+  }
 }
 
 // ===================== UI UPDATES =====================
@@ -1594,7 +1841,8 @@ function updateSelectedDisplay() {
 }
 
 function updatePlayerIndicator() {
-  const label = `SPELER ${state.currentPlayer + 1}`;
+  const name = state.playerNames[state.currentPlayer] || `SPELER ${state.currentPlayer + 1}`;
+  const label = name.toUpperCase();
   const indicator = document.getElementById('player-indicator');
   indicator.textContent = state.finalRound ? `${label} — LAATSTE RONDE` : label;
   indicator.style.borderColor = state.finalRound ? 'rgba(192,57,43,0.6)' : 'rgba(212,168,67,0.25)';
@@ -1628,6 +1876,7 @@ canvas.style.pointerEvents = 'auto';
 // Use both touch and click for maximum compatibility
 function handleInteraction(clientX, clientY) {
   if (state.phase !== 'select' || state.animating) return;
+  if (isBotTurn()) return; // Geen interactie tijdens botbeurt
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const mx = (clientX - rect.left) * (canvas.width / rect.width) / dpr;
@@ -1719,7 +1968,8 @@ function endGame(winnerIndex) {
   document.getElementById('instruction').textContent = '';
 
   const overlay = document.getElementById('win-overlay');
-  document.getElementById('win-text').textContent = `Speler ${winnerIndex + 1} heeft gewonnen!`;
+  const winnerName = state.playerNames[winnerIndex] || `Speler ${winnerIndex + 1}`;
+  document.getElementById('win-text').textContent = `${winnerName} heeft gewonnen!`;
   document.getElementById('win-subtitle').textContent = `Score: ${state.scores[winnerIndex].toLocaleString('nl-NL')} punten`;
   overlay.classList.add('show');
 
@@ -1888,6 +2138,128 @@ function showCheatFeedback(active) {
   void el.offsetWidth;
   el.classList.add('pop');
   setTimeout(() => el.classList.remove('pop'), 700);
+}
+
+// ===================== BOT AI =====================
+function isBotTurn() {
+  return state.isBot[state.currentPlayer] && !state.gameOver;
+}
+
+// Bot strategie: kies de beste scorende dobbelstenen
+function botSelectDice() {
+  const freeDice = state.dice.filter(d => !d.kept);
+  const values = freeDice.map(d => d.value);
+  const counts = [0,0,0,0,0,0,0];
+  values.forEach(v => counts[v]++);
+
+  // Check straat
+  if (freeDice.length === 6 && counts.slice(1).every(c => c === 1)) {
+    freeDice.forEach(d => { d.selected = true; });
+    return;
+  }
+
+  // Selecteer drie-van-een-soort eerst
+  for (let v = 1; v <= 6; v++) {
+    if (counts[v] >= 3) {
+      let picked = 0;
+      freeDice.forEach(d => {
+        if (!d.selected && d.value === v && picked < 3) {
+          d.selected = true;
+          picked++;
+        }
+      });
+      counts[v] -= 3;
+    }
+  }
+
+  // Selecteer losse 1'en en 5'en (strategie: pak slechts 1 per worp tenzij weinig dobbelstenen over)
+  const remainingFree = freeDice.filter(d => !d.selected && !d.kept).length;
+  const anyTripleSelected = freeDice.some(d => d.selected);
+
+  if (!anyTripleSelected) {
+    // Geen triple: pak één scorende dobbelsteen (voorkeur voor 1 boven 5)
+    let picked = false;
+    for (const d of freeDice) {
+      if (!d.selected && d.value === 1 && !picked) {
+        d.selected = true;
+        picked = true;
+        break;
+      }
+    }
+    if (!picked) {
+      for (const d of freeDice) {
+        if (!d.selected && d.value === 5 && !picked) {
+          d.selected = true;
+          picked = true;
+          break;
+        }
+      }
+    }
+  }
+}
+
+// Bot beslissing: doorgoooien of pakken?
+function botShouldBank(turnScore, diceRemaining) {
+  // Eindronde: altijd doorgooien als score laag is
+  if (state.finalRound && state.scores[state.currentPlayer] + turnScore < GOAL) {
+    return false;
+  }
+
+  // Strategie gebaseerd op de gouden regels
+  if (diceRemaining >= 5) return false;                          // 5-6 dobbelstenen: altijd doorgooien
+  if (diceRemaining === 4) return turnScore >= 900;              // 4 dobbelstenen: pakken boven 900
+  if (diceRemaining === 3) return turnScore >= MIN_TURN;         // 3 dobbelstenen: pakken als >= 350
+  return turnScore >= MIN_TURN;                                  // 1-2 dobbelstenen: pakken als mogelijk
+}
+
+function botPlay() {
+  if (!isBotTurn()) return;
+
+  if (state.phase === 'roll') {
+    // Bot gooit
+    setTimeout(() => {
+      if (!isBotTurn()) return;
+      rollDice();
+    }, 800);
+  }
+}
+
+// Hook into the game flow for bot turns
+function botAfterRoll() {
+  if (!isBotTurn()) return;
+  if (state.phase !== 'select') return;
+
+  // Bot selecteert dobbelstenen na een korte pauze
+  setTimeout(() => {
+    if (!isBotTurn() || state.phase !== 'select') return;
+
+    botSelectDice();
+
+    const sel = state.dice.filter(d => d.selected && !d.kept);
+    if (sel.length === 0) return; // Zou niet moeten voorkomen als er scorende dobbelstenen zijn
+
+    const score = calculateScore(sel.map(d => d.value));
+    state.selectedScore = score;
+    updateSelectedDisplay();
+    drawAllDice();
+
+    // Bereken hoeveel dobbelstenen overblijven na selectie
+    const keptAfter = state.keptCount + sel.length;
+    const diceRemaining = keptAfter >= 6 ? 6 : 6 - keptAfter;
+    const potentialScore = state.turnScore + score;
+
+    setTimeout(() => {
+      if (!isBotTurn()) return;
+
+      if (potentialScore >= MIN_TURN && botShouldBank(potentialScore, diceRemaining)) {
+        // Pakken
+        bankScore();
+      } else {
+        // Doorgooien
+        rollDice();
+      }
+    }, 1000);
+  }, 1200);
 }
 
 // ===================== INIT =====================
