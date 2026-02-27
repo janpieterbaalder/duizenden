@@ -2298,9 +2298,16 @@ function botSelectDice() {
 
 // Bot beslissing: doorgooien of pakken? Gebaseerd op V-tabel.
 function botShouldBank(turnScore, diceRemaining) {
-  // Eindronde: altijd doorgooien als totaal nog niet genoeg is om te winnen
-  if (state.finalRound && state.scores[state.currentPlayer] + turnScore < GOAL) {
-    return false;
+  if (state.finalRound) {
+    const myTotal = state.scores[state.currentPlayer] + turnScore;
+    // Zoek de hoogste score van alle andere spelers
+    const highestOther = Math.max(
+      ...state.scores.filter((_, i) => i !== state.currentPlayer)
+    );
+    // Altijd doorgooien als je nog niet boven de leider zit
+    if (myTotal <= highestOther) {
+      return false;
+    }
   }
   // Pak als de beurtscore >= verwachte waarde van doorgooien
   return turnScore >= botGetV(turnScore, diceRemaining);
